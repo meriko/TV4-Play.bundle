@@ -6,21 +6,21 @@ import re
 PLUGIN_TITLE = 'TV4 Play'
 PLUGIN_PREFIX = '/video/tv4play'
 
-PROGRAMS_XML = 'http://www.tv4play.se/?view=xml'
+PROGRAMS_XML = 'http://wwwb.tv4play.se/?view=xml'
 PROGRAMS_HTML = 'http://www.tv4play.se/%s'
-PROGRAM_VIEWS_XML = 'http://www.tv4play.se/%s?view=xml'
+PROGRAM_VIEWS_XML = 'http://wwwb.tv4play.se/%s?view=xml'
 
 NS_VIDEOAPI = {'v':'http://www.tv4.se/xml/videoapi'}
 NS_CONTENTINFO = {'c':'http://www.tv4.se/xml/contentinfo'}
 
 DATE_FORMAT = '%d/%m/%Y'
-PLAYER_URL = 'http://plexapp.com/player/tv4play.php?id=%s'
+PLAYER_URL = 'http://www.plexapp.com/player/tv4play.php?id=%s'
 
 CACHE_INTERVAL = CACHE_1HOUR
 CACHE_INTERVAL_LONG = CACHE_1MONTH
 
 # Default artwork and icon(s)
-PLUGIN_ARTWORK = 'art-default.png'
+PLUGIN_ARTWORK = 'art-default.jpg'
 PLUGIN_ICON_DEFAULT = 'icon-default.png'
 PLUGIN_ICON_MORE = 'icon-more.png'
 
@@ -37,7 +37,7 @@ def Start():
 
   # Set the default cache time
   HTTP.CacheTime = CACHE_INTERVAL
-  HTTP.Headers['User-agent'] = 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.6; en-US; rv:1.9.2.10) Gecko/20100914 Firefox/3.6.10'
+  HTTP.Headers['User-agent'] = 'Plex/Nine'
 
 ###################################################################################################
 
@@ -61,7 +61,7 @@ def MainMenu():
 def TV4Programs(sender, title, thumb, use_xml=True, program_id=None):
   dir = MediaContainer(title2=title)
 
-  # Use the 'main' XML file (www.tv4play.se/?view=xml) to display tv programs
+  # Use the 'main' XML file (wwwb.tv4play.se/?view=xml) to display tv programs
   # This function (TV4Programs) is also used if we're deeper in the website and stumble upon an XML file that contains empty nodes for an extra level of 'subcategories'
   if use_xml:
     programs = XML.ElementFromURL(PROGRAMS_XML, encoding='utf-8', errors='ignore').xpath('/v:xml/v:category/v:subcategories/v:category[@name="'+title+'"]/v:subcategories/v:category[@level="2"]', namespaces=NS_VIDEOAPI)
