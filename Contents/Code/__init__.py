@@ -14,7 +14,7 @@ NS_VIDEOAPI = {'v':'http://www.tv4.se/xml/videoapi'}
 NS_CONTENTINFO = {'c':'http://www.tv4.se/xml/contentinfo'}
 
 DATE_FORMAT = '%d/%m/%Y'
-PLAYER_URL = 'http://www.plexapp.com/player/tv4play.php?id=%s'
+PLAYER_URL = 'http://wwwb.tv4play.se/polopoly_fs/1.939636!approot/embedvideo.swf?videoId=%s&vpmeta=flags%%3Dnooverlays&autoload=true'
 
 CACHE_INTERVAL = CACHE_1HOUR
 CACHE_INTERVAL_LONG = CACHE_1MONTH
@@ -37,12 +37,7 @@ def Start():
 
   # Set the default cache time
   HTTP.CacheTime = CACHE_INTERVAL
-  HTTP.Headers['User-agent'] = 'Plex/Nine'
-
-###################################################################################################
-
-def UpdateCache():
-  HTTP.Request(PROGRAMS_XML, cacheTime=CACHE_INTERVAL).content
+  HTTP.Headers['User-Agent'] = 'Plex/Nine'
 
 ###################################################################################################
 
