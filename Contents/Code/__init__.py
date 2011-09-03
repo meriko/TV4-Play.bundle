@@ -44,7 +44,7 @@ def Start():
 def MainMenu():
   dir = MediaContainer()
 
-  categories = XML.ElementFromURL(PROGRAMS_XML, encoding='utf-8', errors='ignore').xpath('/v:xml/v:category/v:subcategories/v:category[@level="1"]', namespaces=NS_VIDEOAPI)
+  categories = XML.ElementFromURL(PROGRAMS_XML, errors='ignore').xpath('/v:xml/v:category/v:subcategories/v:category[@level="1"]', namespaces=NS_VIDEOAPI)
   for category in categories:
     name = category.get('name')
     dir.Append(Function(DirectoryItem(TV4Programs, title=name, thumb=Function(GetThumb, name=name)), title=name, thumb=name))
@@ -59,7 +59,7 @@ def TV4Programs(sender, title, thumb, use_xml=True, program_id=None):
   # Use the 'main' XML file (wwwb.tv4play.se/?view=xml) to display tv programs
   # This function (TV4Programs) is also used if we're deeper in the website and stumble upon an XML file that contains empty nodes for an extra level of 'subcategories'
   if use_xml:
-    programs = XML.ElementFromURL(PROGRAMS_XML, encoding='utf-8', errors='ignore').xpath('/v:xml/v:category/v:subcategories/v:category[@name="'+title+'"]/v:subcategories/v:category[@level="2"]', namespaces=NS_VIDEOAPI)
+    programs = XML.ElementFromURL(PROGRAMS_XML, errors='ignore').xpath('/v:xml/v:category/v:subcategories/v:category[@name="'+title+'"]/v:subcategories/v:category[@level="2"]', namespaces=NS_VIDEOAPI)
     for program in programs:
       name = program.get('name')
       # We need the id of this program, unfortunately this isn't available in the XML file and we need to grab it from the program's home page
@@ -87,7 +87,7 @@ def TV4Views(sender, title, url, thumb, lookup_id=True):
   # When we want to display the different views of a program, we first need to know what the id of that program is so we can download the right XML file.
   # But... we only know the program's name and url of its home page. The url is used here to find the program's id.
   if lookup_id == True:
-    program_id = HTML.ElementFromURL(url, encoding='utf-8', errors='ignore', cacheTime=CACHE_INTERVAL_LONG).xpath('/html/body//div[@id="browser"]//ul[@class="breadcrumbs"]//li[last()]/h3/a')[0]
+    program_id = HTML.ElementFromURL(url, errors='ignore', cacheTime=CACHE_INTERVAL_LONG).xpath('/html/body//div[@id="browser"]//ul[@class="breadcrumbs"]//li[last()]/h3/a')[0]
     program_id = program_id.get('href')
     program_id = re.findall('browser=([0-9\.]+)', program_id)[0]
     url = PROGRAM_VIEWS_XML % program_id
@@ -129,7 +129,7 @@ def TV4Views(sender, title, url, thumb, lookup_id=True):
 def TV4Videos(sender, title, url, page=1):
   dir = MediaContainer(title2=title)
 
-  videoContent = XML.ElementFromURL(url + '&page=' + str(page), encoding='utf-8', errors='ignore')
+  videoContent = XML.ElementFromURL(url + '&page=' + str(page), errors='ignore')
 
   videos = videoContent.xpath('/c:xml/c:contentList/c:content', namespaces=NS_CONTENTINFO)
   for video in videos:
