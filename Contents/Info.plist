@@ -4,20 +4,29 @@
 <dict>
 	<key>CFBundleIdentifier</key>
 	<string>com.plexapp.plugins.tv4play</string>
-	<key>PlexClientCapabilities</key>
-	<dict>
-		<key>protocols</key>
-		<array>
-			<string>webkit</string>
-		</array>
-	</dict>
-	<key>PlexClientPlatforms</key>
-	<string>*</string>
 	<key>PlexFrameworkVersion</key>
 	<string>2</string>
-	<key>PlexMediaContainer</key>
+	<key>PlexClientPlatforms</key>
+	<string>*</string>
+    <key>PlexPluginCodePolicy</key>
+    <string>Elevated</string>
+	<key>PlexFrameworkFlags</key>
 	<array>
-		<string>Flash</string>
+		<string>UseRealRTMP</string>
 	</array>
+	<key>PlexURLServices</key>
+	<dict>
+   		<key>tv4play</key>
+   		<dict>
+      		<key>Identifier</key>
+      			<string>com.plexapp.plugins.tv4play</string>
+      		<key>URLPattern</key>
+      			<string>http://www.tv4play.se/program/.*video_id=[0-9]+</string>
+   		</dict>
+   		<key>PlexFrameworkFlags</key>
+		<array>
+			<string>UseRealRTMP</string>
+		</array>
+	</dict>
 </dict>
 </plist>
