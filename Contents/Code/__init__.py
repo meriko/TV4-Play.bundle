@@ -69,6 +69,9 @@ def MainMenu():
 		                  thumb = None)
 		      )
 
+	# Add preference for video resolution
+	oc.add(PrefsObject(title = u"Inställningar ..."))
+
 	return oc
 
 ####################################################################################################
@@ -165,6 +168,15 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0):
 			availabilty = video['availability']['human']
 		else:
 			availabilty = ""		 	 		  
+
+		if Prefs['qualitypreference'] == "Automatisk":
+			pass
+		elif Prefs['qualitypreference'] == "Normal (576p)":
+			url = url + "?resolution=576"
+		elif Prefs['qualitypreference'] == "Mellan (432p)":
+			url = url + "?resolution=432"
+		else:
+			url = url + "?resolution=360"
 
 		if episodeReq:
 			oc.add(
