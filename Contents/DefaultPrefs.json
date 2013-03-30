@@ -1,0 +1,9 @@
+[
+    {
+        "id": "qualitypreference",
+        "type": "enum",
+        "label": "Videokvalitet",
+        "values": [ "Automatisk", "Normal (576p)", "Mellan (432p)", "Låg (360p)"],
+        "default": "Normal (576p)"
+    }
+]
