@@ -9,6 +9,7 @@ import simplejson
 
 PORT = 10001
 VIDEO_ID_REGEXP = '(?<=video_id=)[0-9]+'
+EPISODE_REGEXP  = 'Del ([0-9]+)'
 
 ####################################################################################################
 def NormalizeURL(url):
@@ -43,6 +44,11 @@ def MetadataObjectForURL(url):
 	except:
 		title = None
 
+	try:
+		episode = int(re.search(EPISODE_REGEXP, title).group(0))
+	except:
+		episode = None
+
 	try:  
 		summary = xmlElement.xpath("//asset//description/text()")[0]
 	except:
@@ -69,6 +75,7 @@ def MetadataObjectForURL(url):
 		return EpisodeObject(
 			show = show,
 			title = title,
+			index = episode,
 			summary = summary,
 			duration = duration,
 			thumb = thumb,
@@ -181,41 +188,40 @@ def MediaObjectsForURL(url):
                              
 					mediaObjs.append(mo)
 
-			# Adobe HDS
-			elif base.endswith('f4m'):
-				Log(" * Type       => Adobe HDS")
+				# Adobe HDS
+				elif base.endswith('f4m'):
+					Log(" * Type       => Adobe HDS")
 
-				# Currently, PLEX/FFMpeg does not support HDS streams so
-				# we will do a workaround by getting the fragments ourselves and
-				# concatenate them into a FLV file.
-				#
-				# This FLV file will be "live" feed to PLEX on the fly
-				# via an internal HTTP server, setup on local server address.
-				#
-				# Drawback:
-				#   Unfortunately this workaround does not support
-				#   any player navigation(fast forward, skip etc). 
-				mo = MediaObject(
-					container               = 'flv',
-					video_codec             = VideoCodec.H264,
-					video_resolution        = height,
-					audio_codec             = AudioCodec.AAC,                 
-					audio_channels          = 2,
-					optimized_for_streaming = True,
-					parts                   = [PartObject(key = Callback(HTTPDynamicStreamURL,
-                                                                                url = clip,
-                                                                                resolution = preferredRes))]
-				)
+					# Currently, PLEX/FFMpeg does not support HDS streams so
+					# we will do a workaround by getting the fragments ourselves and
+					# concatenate them into a FLV file.
+					#
+					# This FLV file will be "live" feed to PLEX on the fly
+					# via an internal HTTP server, setup on local server address.
+					#
+					# Drawback:
+					#   Unfortunately this workaround does not support
+					#   any player navigation(fast forward, skip etc). 
+					mo = MediaObject(
+						container               = 'flv',
+						video_codec             = VideoCodec.H264,
+						video_resolution        = height,
+						audio_codec             = AudioCodec.AAC,                 
+						audio_channels          = 2,
+						optimized_for_streaming = True,
+						parts                   = [PartObject(key = Callback(HTTPDynamicStreamURL, url = clip,
+                            	                                                    			   resolution = preferredRes))]
+					)
 
-				mediaObjs.append(mo)  
+					mediaObjs.append(mo)  
+
+				else:
+					# The .smi files could be used for subtitles, but
+					# unfortunately subtitles and channels are not supported by PLEX
+					Log.Warn("Unsupported type: " + clip)
 
 			else:
-				# The .smi files could be used for subtitles, but
-				# unfortunately subtitles and channels are not supported by PLEX
-				Log.Warn("Unsupported type: " + clip)
-
-		else:
-			Log.Warn("Unsupported type(not RTMP nor HTTP): " + clip)
+				Log.Warn("Unsupported type(not RTMP nor HTTP): " + clip)
 
 	if mediaObjs == []:
 		# Add webkit playback as a fallback

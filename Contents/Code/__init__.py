@@ -164,6 +164,11 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0):
   		else:
   			description = ""  
   		  
+		try:
+			episode = int(re.search('Del ([0-9]+)', video['name']).group(0))
+		except:
+			episode = None 		  
+  		  
   		if video['availability']['human'] != None:
 			availabilty = video['availability']['human']
 		else:
@@ -183,6 +188,7 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0):
 		  		EpisodeObject(
             		url = url,
             		title = video['name'],
+            		index = episode,
             		summary = description + " " + availabilty,
             		show = showName,
             		thumb = video['originalimage'],
