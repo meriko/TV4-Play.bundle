@@ -111,7 +111,7 @@ def MediaObjectsForURL(url):
 	# Search for streams
 	try:
 		# Try get info on HLS streams
-		xmlElement = XML.ElementFromURL(url = "http://premium.tv4play.se/api/web/asset/" + id + "/play?protocol=hls&videoFormat=MP4")
+		xmlElement = XML.ElementFromURL(url = "http://premium.tv4play.se/api/web/asset/" + id + "/play?protocol=hls&videoFormat=MP4+SMI")
 		xmlInfoFound = True
 	except:
 		xmlInfoFound = False
@@ -223,15 +223,14 @@ def MediaObjectsForURL(url):
 			else:
 				Log.Warn("Unsupported type(not RTMP nor HTTP): " + clip)
 
-	if mediaObjs == []:
-		# Add webkit playback as a fallback
-		# Some videos require Widewine ... (Michel Roux show for example)
-		mo = MediaObject(
-			audio_channels = 2,
-            parts          = [PartObject(key = WebVideoURL("http://embed.tv4play.se/tv4play/syndication/v1/popout.html?vid=" + id))]
-		)
+	# Add webkit playback as an option to view with subtitles
+	# Also, some videos require Widevine
+	mo = MediaObject(
+		audio_channels = 2,
+        parts          = [PartObject(key = WebVideoURL("http://embed.tv4play.se/tv4play/syndication/v1/popout.html?vid=" + id))]
+	)
 
-		mediaObjs.append(mo)  
+	mediaObjs.append(mo)  
 
 	return mediaObjs
 
