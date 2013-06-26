@@ -10,23 +10,5 @@
 	<string>*</string>
     <key>PlexPluginCodePolicy</key>
     <string>Elevated</string>
-	<key>PlexFrameworkFlags</key>
-	<array>
-		<string>UseRealRTMP</string>
-	</array>
-	<key>PlexURLServices</key>
-	<dict>
-   		<key>tv4play</key>
-   		<dict>
-      		<key>Identifier</key>
-      			<string>com.plexapp.plugins.tv4play</string>
-      		<key>URLPattern</key>
-      			<string>http://www.tv4play.se/program/.*video_id=[0-9]+</string>
-   		</dict>
-   		<key>PlexFrameworkFlags</key>
-		<array>
-			<string>UseRealRTMP</string>
-		</array>
-	</dict>
 </dict>
 </plist>
