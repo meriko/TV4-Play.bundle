@@ -153,8 +153,8 @@ def GetHLSStreams(url):
                     stream["url"] = url.replace("master.m3u8", line)
                     
                 streams.append(stream)
-                
-                sorted_streams = sorted(streams, key = lambda stream: stream["resolution"], reverse = True)        
+                            
+    sorted_streams = sorted(streams, key = lambda stream: stream["resolution"], reverse = True)        
 
     return sorted_streams 
 
