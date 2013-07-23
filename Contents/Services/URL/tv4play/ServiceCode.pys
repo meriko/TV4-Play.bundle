@@ -83,13 +83,14 @@ def MediaObjectsForURL(url):
 
     return [
         MediaObject(
+            container               = 'mpegts',
             video_codec             = VideoCodec.H264,
             audio_codec             = AudioCodec.AAC, 
             audio_channels          = 2,
             optimized_for_streaming = True,
             parts                   = [
                 PartObject(
-                    key = Callback(PlayVideo, id = id)
+                    key = HTTPLiveStreamURL(Callback(PlayVideo, id = id))
                 )
             ]
         )
@@ -98,39 +99,20 @@ def MediaObjectsForURL(url):
 ####################################################################################################
 @indirect
 def PlayVideo(id):
-    # Search for streams
     xmlElement = None
     
     try:
         # Try get info on HLS streams
         xmlElement = XML.ElementFromURL(url = "http://premium.tv4play.se/api/web/asset/" + id + "/play?protocol=hls&videoFormat=MP4")
     except:
-        try:
-            # Try without specifying HLS
-            xmlElement = XML.ElementFromURL(url = "http://premium.tv4play.se/api/web/asset/" + id + "/play") 
-        except:
-            pass
+        pass
 
     if xmlElement:
         for item in xmlElement.xpath("//playback//items")[0]:
-            base    = item.xpath(".//base/text()")[0]
-            clip    = item.xpath(".//url/text()")[0]
-
-            #RTMP(E)        
-            if base.startswith('rtmp'):
-                return IndirectResponse(
-                    VideoClipObject,
-                    key = 
-                        RTMPVideoURL(
-                            base,
-                            clip = clip, 
-                            swf_url = "http://www.tv4play.se/flash/tv4playflashlets.swf"
-                        )
-                )
-
-            elif base.startswith('http'):
-                if base.endswith('.m3u8'):
-
+            base = item.xpath(".//base/text()")[0]
+            clip = item.xpath(".//url/text()")[0]
+            
+            if base.startswith('http') and base.endswith('.m3u8'):
                     streams = GetHLSStreams(clip)
 
                     return IndirectResponse(
