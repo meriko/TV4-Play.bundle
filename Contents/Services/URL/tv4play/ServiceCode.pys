@@ -1,432 +1,178 @@
-import re
-import string
-import random
-import base64
-import binascii
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-import thread
-import simplejson
-
-PORT = 10001
-VIDEO_ID_REGEXP = '(?<=video_id=)[0-9]+'
-EPISODE_REGEXP  = 'Del ([0-9]+)'
+RE_VIDEO_ID = Regex('(?<=video_id=)[0-9]+')
+RE_EPISODE  = Regex('Del ([0-9]+)', Regex.IGNORECASE)
 
 ####################################################################################################
 def NormalizeURL(url):
-	return url
+    return url
 
 ####################################################################################################
 def MetadataObjectForURL(url):
-	try:
-		m   = re.search('(?<=resolution=)[0-9]+', url)
-		url = url.replace("?resolution=" + m.group(0), "")
-	except:
-		pass
+    # Determine id of episode
+    try:
+        id = RE_VIDEO_ID.search(url).group(0)
+    except:
+        raise Ex.MediaNotAvailable
 
-	# Determine id of episode
-	try:
-		m  = re.search(VIDEO_ID_REGEXP, url)
-		id = m.group(0)
-	except:
-		raise Ex.MediaNotAvailable
+    try:
+        xmlElement = XML.ElementFromURL("http://premium.tv4play.se/api/web/asset/" + id)
+    except:
+        raise Ex.MediaNotAvailable
 
-	try:
-		xmlElement = XML.ElementFromURL("http://premium.tv4play.se/api/web/asset/" + id)
-	except:
-		raise Ex.MediaNotAvailable
+    show = None
+    try:
+        title = xmlElement.xpath("//asset//title/text()")[0]
 
-	show = None
-	try:
-		title = xmlElement.xpath("//asset//title/text()")[0]
+        if ' del' in title:
+            (show, title) = title.split(' ', 1)
+    except:
+        title = None
 
-		if ' del' in title:
-			(show, title) = title.split(' ', 1)
-	except:
-		title = None
+    try:
+        episode = int(RE_EPISODE.search(title).group(0))
+    except:
+        episode = None
 
-	try:
-		episode = int(re.search(EPISODE_REGEXP, title).group(0))
-	except:
-		episode = None
+    try:  
+        summary = xmlElement.xpath("//asset//description/text()")[0]
+    except:
+        summary = None
 
-	try:  
-		summary = xmlElement.xpath("//asset//description/text()")[0]
-	except:
-		summary = None
+    try:    
+        thumb = "http://prima.tv4play.se/multimedia/vman/" + xmlElement.xpath("//asset//imageUrl/text()")[0]
+    except:
+        thumb = None  
 
-	try:    
-		thumb = "http://prima.tv4play.se/multimedia/vman/" + xmlElement.xpath("//asset//imageUrl/text()")[0]
-	except:
-		thumb = None  
+    try:
+        air_date = xmlElement.xpath("//asset//liveBroadcastTime/text()")[0].split('T')[0]
+        air_date = Datetime.ParseDate(air_date).date()
+    except:
+        air_date = None
 
-	try:
-		air_date = xmlElement.xpath("//asset//liveBroadcastTime/text()")[0].split('T')[0]
-		air_date = Datetime.ParseDate(air_date).date()
-	except:
-		air_date = None
+    try:
+        duration = xmlElement.xpath("//asset//duration/text()")[0]
+        duration = int(duration) * 1000 #millisecs
+    except:
+        duration = None
 
-	try:
-		duration = xmlElement.xpath("//asset//duration/text()")[0]
-		duration = int(duration) * 1000 #millisecs
-	except:
-		duration = None
-
-	if show:  
-		return EpisodeObject(
-			show = show,
-			title = title,
-			index = episode,
-			summary = summary,
-			duration = duration,
-			thumb = thumb,
-			originally_available_at = air_date
-		)
-	else:
-		return VideoClipObject(
-			title = title,
-			summary = summary,
-			duration = duration,
-			thumb = thumb,
-			originally_available_at = air_date
-		)
+    if show:  
+        return EpisodeObject(
+            show = show,
+            title = title,
+            index = episode,
+            summary = summary,
+            duration = duration,
+            thumb = thumb,
+            originally_available_at = air_date
+        )
+    else:
+        return VideoClipObject(
+            title = title,
+            summary = summary,
+            duration = duration,
+            thumb = thumb,
+            originally_available_at = air_date
+        )
 
 ####################################################################################################
 def MediaObjectsForURL(url):
-	mediaObjs = []
+    # Determine id of episode
+    try:
+        id = RE_VIDEO_ID.search(url).group(0)
+    except:
+        raise Ex.MediaNotAvailable
 
-	try:
-		m            = re.search('(?<=resolution=)[0-9]+', url)
-		preferredRes = m.group(0)
-		url          = url.replace("?resolution=" + preferredRes, "")
-	except:
-		preferredRes = None
+    return [
+        MediaObject(
+            video_codec             = VideoCodec.H264,
+            audio_codec             = AudioCodec.AAC, 
+            audio_channels          = 2,
+            optimized_for_streaming = True,
+            parts                   = [
+                PartObject(
+                    key = Callback(PlayVideo, id = id)
+                )
+            ]
+        )
+    ]
 
-	# Determine id of episode
-	try:
-		m  = re.search(VIDEO_ID_REGEXP, url)
-		id = m.group(0)
-	except:
-		raise Ex.MediaNotAvailable
+####################################################################################################
+@indirect
+def PlayVideo(id):
+    # Search for streams
+    xmlElement = None
+    
+    try:
+        # Try get info on HLS streams
+        xmlElement = XML.ElementFromURL(url = "http://premium.tv4play.se/api/web/asset/" + id + "/play?protocol=hls&videoFormat=MP4")
+    except:
+        try:
+            # Try without specifying HLS
+            xmlElement = XML.ElementFromURL(url = "http://premium.tv4play.se/api/web/asset/" + id + "/play") 
+        except:
+            pass
 
-	# Search for streams
-	try:
-		# Try get info on HLS streams
-		xmlElement = XML.ElementFromURL(url = "http://premium.tv4play.se/api/web/asset/" + id + "/play?protocol=hls&videoFormat=MP4+SMI")
-		xmlInfoFound = True
-	except:
-		xmlInfoFound = False
-		try:
-			# Try without specifying HLS
-			xmlElement = XML.ElementFromURL(url = "http://premium.tv4play.se/api/web/asset/" + id + "/play")
-			xmlInfoFound = True  
-		except:
-			xmlInfoFound = False
+    if xmlElement:
+        for item in xmlElement.xpath("//playback//items")[0]:
+            base    = item.xpath(".//base/text()")[0]
+            clip    = item.xpath(".//url/text()")[0]
 
-	if xmlInfoFound:
-		for item in xmlElement.xpath("//playback//items")[0]:
-			base    = item.xpath(".//base/text()")[0]
-			clip    = item.xpath(".//url/text()")[0]
-			bitrate = int(item.xpath(".//bitrate/text()")[0])
+            #RTMP(E)        
+            if base.startswith('rtmp'):
+                return IndirectResponse(
+                    VideoClipObject,
+                    key = 
+                        RTMPVideoURL(
+                            base,
+                            clip = clip, 
+                            swf_url = "http://www.tv4play.se/flash/tv4playflashlets.swf"
+                        )
+                )
 
-			Log("------------ STREAM --")
-			Log(" * URL        => " + clip)
-			Log(" * Bitrate    => " + str(bitrate)) 
+            elif base.startswith('http'):
+                if base.endswith('.m3u8'):
 
-			[width, height] = BitrateToResolution(bitrate)
-			aspect          = width / height
+                    streams = GetHLSStreams(clip)
 
-			Log(" * Resolution => " + str(width) + "x" + str(height)) 
+                    return IndirectResponse(
+                        VideoClipObject,
+                        key = HTTPLiveStreamURL(streams[0]['url'])
+                    )
 
-			#RTMP(E)        
-			if base.startswith('rtmp'):
-				Log(" * Type       => RTMP(E)")   
-				mo = MediaObject(
-						video_codec             = VideoCodec.H264,
-						video_resolution        = height,
-						audio_codec             = AudioCodec.AAC, 
-						audio_channels          = 2,
-						optimized_for_streaming = True,
-						parts                   = [PartObject(key = RTMPVideoURL(base,
-                                                                                 clip = clip, 
-                                                                                 swf_url = "http://www.tv4play.se/flash/tv4playflashlets.swf"))]
-				)
-				mediaObjs.append(mo)
-
-			elif base.startswith('http'):
-				# HLS
-				if base.endswith('.m3u8'):
-					Log(" * Type       => HLS")
-					# IOS can handle m3u8 correctly, i.e. switch between
-					# urls/bitrates.
-					# It seems that PLEX/FFMpeg cannot, so
-					# we will get the url that contains
-					# the preferred resolution for other clients if
-					# a preferred resolution exist
-					#
-					# Also, it does not seem that Plex Media Center client(or FFMpeg?)
-					# can handle m3u8 playlists with relative paths 
-					if preferredRes and Client.Platform != ClientPlatform.iOS:  
-						mo = MediaObject(
-							container               = 'mpegts',
-							video_codec             = VideoCodec.H264,
-							video_resolution        = height,
-							audio_codec             = AudioCodec.AAC,                 
-							audio_channels          = 2,
-							optimized_for_streaming = True,
-							parts                   = [PartObject(key = HTTPLiveStreamURL(Callback(PlayHLS, url = clip, resolution = preferredRes)))]
-						)
-					else:
-						mo = MediaObject(
-							container               = 'mpegts',
-							video_codec             = VideoCodec.H264,
-							video_resolution        = height,
-							audio_codec             = AudioCodec.AAC,                 
-							audio_channels          = 2,
-							optimized_for_streaming = True,
-							parts                   = [PartObject(key = HTTPLiveStreamURL(clip))]
-						)          
-                             
-					mediaObjs.append(mo)
-
-				# Adobe HDS
-				elif base.endswith('f4m'):
-					Log(" * Type       => Adobe HDS")
-
-					# Currently, PLEX/FFMpeg does not support HDS streams so
-					# we will do a workaround by getting the fragments ourselves and
-					# concatenate them into a FLV file.
-					#
-					# This FLV file will be "live" feed to PLEX on the fly
-					# via an internal HTTP server, setup on local server address.
-					#
-					# Drawback:
-					#   Unfortunately this workaround does not support
-					#   any player navigation(fast forward, skip etc). 
-					mo = MediaObject(
-						container               = 'flv',
-						video_codec             = VideoCodec.H264,
-						video_resolution        = height,
-						audio_codec             = AudioCodec.AAC,                 
-						audio_channels          = 2,
-						optimized_for_streaming = True,
-						parts                   = [PartObject(key = Callback(HTTPDynamicStreamURL, url = clip,
-                            	                                                    			   resolution = preferredRes))]
-					)
-
-					mediaObjs.append(mo)  
-
-				else:
-					# The .smi files could be used for subtitles, but
-					# unfortunately subtitles and channels are not supported by PLEX
-					Log.Warn("Unsupported type: " + clip)
-
-			else:
-				Log.Warn("Unsupported type(not RTMP nor HTTP): " + clip)
-
-	# Add webkit playback as an option to view with subtitles
-	# Also, some videos require Widevine
-	mo = MediaObject(
-		audio_channels = 2,
-        parts          = [PartObject(key = WebVideoURL("http://embed.tv4play.se/tv4play/syndication/v1/popout.html?vid=" + id))]
-	)
-
-	mediaObjs.append(mo)  
-
-	return mediaObjs
+    # Add Webkit playback if we couldn't find a stream.
+    return IndirectResponse(
+        VideoClipObject,
+        key = WebVideoURL("http://embed.tv4play.se/tv4play/syndication/v1/popout.html?vid=" + id)
+    )
 
 ###########################################################
-def PlayHLS(url, resolution):
-	HLSStreams = getHLSStreams(url)
+def GetHLSStreams(url):
+    streams = []
 
-	hlsUrl = url     
-	diff   = 1000000000  # Some huge number
-	for stream in HLSStreams:
-		newDiff = abs(stream["resolution"] - int(resolution))
-		if newDiff < diff:
-			diff   = newDiff
-			hlsUrl = stream["url"]
+    playList = HTTP.Request(url).content
 
-	newPlaylist = ""  
-	orgPlayList = HTTP.Request(hlsUrl).content
-	path        = url[ : url.find('master.m3u8')]
-	for line in orgPlayList.splitlines():
-		if 'segment' in line:
-			newPlaylist = newPlaylist + path + line + '\n'
-		else:
-			newPlaylist = newPlaylist + line + '\n'   
+    # Parse the m3u8 file to get:
+    # - URL
+    # - Resolution
+    # - Bitrate
+    for line in playList.splitlines():
+        if "BANDWIDTH" in line:
+            stream            = {}
+            stream["bitrate"] = int(Regex('(?<=BANDWIDTH=)[0-9]+').search(line).group(0))        
 
-	return newPlaylist
+            if "RESOLUTION" in line:
+                stream["resolution"] = int(Regex('(?<=RESOLUTION=)[0-9]+x[0-9]+').search(line).group(0).split("x")[1])
+            else:
+                # Audio only stream
+                stream["resolution"] = 0
 
-###########################################################
-def BitrateToResolution(bitrate):
-	if bitrate >= 2500:
-		# 1024x576
-		resolution = [1024, 576]  
-	elif bitrate >= 1500:
-		# 768x432
-		resolution = [768, 432] 
-	elif bitrate >= 800:
-		# 640x360
-		resolution = [640, 360]
-	elif bitrate >= 300:
-		# 384x216
-		resolution = [384, 216]
-	else:
-		# 128x72
-		resolution = [128, 72]
+        elif ".m3u8" in line:
+            if stream["resolution"] > 0:
+                if not line.startswith("http://"):
+                    stream["url"] = url.replace("master.m3u8", line)
+                    
+                streams.append(stream)
+                
+                sorted_streams = sorted(streams, key = lambda stream: stream["resolution"], reverse = True)        
 
-	return resolution
+    return sorted_streams 
 
-###########################################################
-def getHLSStreams(hlsUrl):
-	streams = []
-	Found   = True  
-
-	try: 
-		pageElement = HTML.ElementFromURL(hlsUrl)
-	except:
-		Found = False
-
-	if Found:
-		streamSpec      = pageElement.xpath("text()")[0]
-		streamSpecLines = streamSpec.splitlines()
-
-		# Parse the m3u8 file to get:
-		# - URL
-		# - Resolution
-		# - Bitrate
-		for line in streamSpecLines:
-			if "BANDWIDTH" in line:
-				bwm = re.search('(?<=BANDWIDTH=)[0-9]+', line)
-
-				stream               = {}
-				stream["bitrate"]    = int(bwm.group(0))        
-
-				if "RESOLUTION" in line:
-					rnm                  = re.search('(?<=RESOLUTION=)[0-9]+x[0-9]+', line)
-					stream["resolution"] = int(rnm.group(0).split("x")[1])
-				else:
-					stream["resolution"] = 0
-
-			elif "index" in line:
-				if stream["resolution"] > 0:
-					stream["url"] = hlsUrl.replace("master.m3u8", line)
-					Log("STREAM: " + stream["url"])
-					streams.append(stream)         
-
-	return streams  
-
-###########################################################
-# Stuff for HDS streams
-###########################################################
-def HTTPDynamicStreamURL(url, resolution):
-	rnd                 = ''.join(random.choice(string.ascii_uppercase) for x in range(12))
-	manifest_info_url   = "%s?hdcore=2.7.6&g=%s" % (url, rnd)  #2.8.0?
-	[streams, duration] = get_manifest_data(manifest_info_url)
-
-	if resolution:    
-		diff = 1000000000  # Some huge number
-		for br in streams:
-			newDiff = abs(BitrateToResolution(br) - int(resolution))
-			if newDiff < diff:
-				diff    = newDiff
-				bitrate = br
-	else:	 
-    	# Use max bitrate for HDS streams    
-		maxBitrateFound = 0
-		bitrate         = 0
-		for br in streams:
-			if br > maxBitrateFound:
-				bitrate         = br
-				maxBitrateFound = bitrate
-
-	HDSInfo = {}
-	HDSInfo["maxFragmentNo"]    = int(round(duration / 6)) # 6 second fragments
-	HDSInfo["stream"]           = streams[bitrate]
-	HDSInfo["segment_base_url"] = url[0:url.rfind("/")]
-
-	request = simplejson.dumps(HDSInfo)
-
-	thread.start_new_thread(HTTPServerThread, ("127.0.0.1", PORT))  
-
-	return Redirect("http://127.0.0.1:" + str(PORT) + "/" + request + ".flv")
-
-###########################################################
-def get_manifest_data(manifest_info_url):
-	streams = {}
-
-	# Get the the manifest info file
-	xmlElement = XML.ElementFromURL(manifest_info_url)
-	#Log(xmlElement.xpath("//*[name()]"))
-
-	# Parse out media info
-	# <media bitrate="337" url="0_ee8b5f6c472833a3_" bootstrapInfoId="bootstrap_0">
-	#   <metadata>AgAKb25NZXRhRGF0YQgAAAAMAAhkdXJhdGlvbgBArtl41P3ztgAFd2lkdGgAQHgAAAAAAAAABmhlaWdodABAawAAAAAAAAANdmlkZW9kYXRhcmF0ZQBAch5QJ14MowAJZnJhbWVyYXRlAEA4//lcf2E0AAx2aWRlb2NvZGVjaWQAQBwAAAAAAAAADWF1ZGlvZGF0YXJhdGUAQEg+9MsHCGkAD2F1ZGlvc2FtcGxlcmF0ZQBA53AAAAAAAAAPYXVkaW9zYW1wbGVzaXplAEAwAAAAAAAAAAZzdGVyZW8BAAAMYXVkaW9jb2RlY2lkAEAkAAAAAAAAAAhmaWxlc2l6ZQBBo+kxdgAAAAAACQ==</metadata>
-	duration = float(xmlElement.xpath("//*[contains(name(), 'duration')]//text()")[0])
-
-	for media in xmlElement.xpath("//*[contains(name(), 'media')]"):
-		stream             = {}
-		stream["bitrate"]  = media.xpath(".//@bitrate")[0]    
-		stream["url"]      = media.xpath(".//@url")[0]
-		stream["metadata"] = media.xpath(".//*[contains(name(), 'metadata')]//text()")[0]
-
-    	streams[int(stream["bitrate"])] = stream
-
-	return [streams, duration]
-
-  
-def HTTPServerThread(ip, port):
-	try:
-		httpserver = HTTPServer((ip, port), HDSVideoHandler)
-		httpserver.serve_forever()
-	except :
-		Log.Add("Server Already Running")
-
-class HDSVideoHandler(BaseHTTPRequestHandler):
-
-	def do_HEAD(self):
-		try:
-			self.send_response(200)
-			self.send_header('Content-Type', 'video/x-flv')
-			self.end_headers()
-			return
-		except:
-			Log.Add("Got an Error")
-
-	def do_GET(self):
-		HDSInfoJSON = self.path[1:].rstrip(".flv").replace("%20", " ")
-		HDSInfo     = simplejson.loads(HDSInfoJSON)
-
-		stream           = HDSInfo["stream"]
-		maxFragmentNo    = HDSInfo["maxFragmentNo"]
-		segment_base_url = HDSInfo["segment_base_url"]   
-
-		self.send_response(200)  
-		self.send_header('Content-Type', 'video/x-flv')
-		self.end_headers()    
-
-		for fragmentNo in range(1, maxFragmentNo + 1):
-			fragment_url = "%s/%sSeg1-Frag%s" % (segment_base_url, stream["url"], fragmentNo)
-
-			try:
-				request = HTTP.Request(fragment_url, cacheTime = 0, immediate = True)
-
-				buffer = ""
-
-				if fragmentNo == 1:
-					# Add FLV header
-					buffer = buffer + binascii.a2b_hex("464c56010500000009000000001200010c00000000000000")
-					buffer = buffer + base64.b64decode(stream["metadata"])
-					buffer = buffer + binascii.a2b_hex("00000000") 
-
-				buffer = buffer + request.content[request.content.find("mdat") + 4:]
-
-				self.wfile.write(buffer)
-
-			except:
-				break                    
-
-		return
-
-	def do_POST(self):
-		Log.Add("Got a Post")
