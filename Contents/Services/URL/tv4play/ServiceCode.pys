@@ -1,5 +1,5 @@
-RE_VIDEO_ID = Regex('(?<=video_id=)[0-9]+')
-RE_EPISODE  = Regex('Del ([0-9]+)', Regex.IGNORECASE)
+RE_VIDEO_ID     = Regex('(?<=video_id=)[0-9]+')
+RE_SHOW_EPISODE = Regex('(.*) *(Del) *([0-9]+) *(.*)', Regex.IGNORECASE)
 
 ####################################################################################################
 def NormalizeURL(url):
@@ -18,18 +18,17 @@ def MetadataObjectForURL(url):
     except:
         raise Ex.MediaNotAvailable
 
-    show = None
     try:
         title = xmlElement.xpath("//asset//title/text()")[0]
-
-        if ' del' in title:
-            (show, title) = title.split(' ', 1)
     except:
         title = None
-
+             
     try:
-        episode = int(RE_EPISODE.search(title).group(0))
+        match   = RE_SHOW_EPISODE.search(xmlElement.xpath(title)).groups()
+        show    = match[0]
+        episode = match[2]
     except:
+        show    = None
         episode = None
 
     try:  

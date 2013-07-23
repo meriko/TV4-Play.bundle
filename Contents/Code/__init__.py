@@ -164,13 +164,13 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0):
     for video in videos['results']:
         url = BASE_URL + "/program/" + "%s?video_id=%s" % (showId, str(video['vmanprogid']))
                         
-        try:
+        if True:
             publishdate = str(video['publishdate'])
-            year        = int(publishdate[0:4])
-            month       = int(publishdate[4:6])
-            day         = int(publishdate[6:8])
-            airdate     = datetime.date(year, month, day)
-        except:
+            year        = publishdate[0:4]
+            month       = publishdate[4:6]
+            day         = publishdate[6:8]
+            airdate     = Datetime.ParseDate(year + '-' + month + '-' + day)
+        else:
             airdate = None
           
         if video['lead'] != None:
@@ -179,7 +179,7 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0):
             description = ""  
           
         try:
-            episode = int(Regex('Del ([0-9]+)').search(video['name']).group(0))
+            episode = int(Regex('.* *Del *([0-9]+) *.*', Regex.IGNORECASE).search(video['name']).groups()[0])
         except:
             episode = None        
           
