@@ -164,13 +164,13 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0):
     for video in videos['results']:
         url = BASE_URL + "/program/" + "%s?video_id=%s" % (showId, str(video['vmanprogid']))
                         
-        if True:
+        try:
             publishdate = str(video['publishdate'])
             year        = publishdate[0:4]
             month       = publishdate[4:6]
             day         = publishdate[6:8]
             airdate     = Datetime.ParseDate(year + '-' + month + '-' + day)
-        else:
+        except:
             airdate = None
           
         if video['lead'] != None:
