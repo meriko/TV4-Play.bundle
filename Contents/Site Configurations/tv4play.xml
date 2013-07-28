@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<site site="http://wwwb?.tv4play.se"
-	plugin="http://wwwb?.tv4play.se/.*/embedvideo.swf"
-	initialState="waiting-for-volume"
-	windowWidth="690"
-	windowHeight="790"
+<site site="http://.*.tv4play.se.*"
+	plugin="http://.*.tv4play.se*"
+	initialState="playing"
+	windowWidth="1024"
+	windowHeight="598"
 	version="2.0">
 
-	<crop x="0" y="210" width="690" height="388" />
 	<seekbar type="simple">
 		<start x="47" y="771" />
 		<end x="523" y="771" />
@@ -29,18 +28,18 @@
 		</played>
 	</seekbar>
 
-	<!-- WAITING FOR VOLUME -->
-	<state name="waiting-for-volume">
-		<event>
-			<condition>
-				<color x="13" y="770" rgb="ffffff" />
-			</condition>
-			<action>
-				<click x="645" y="773" />
-				<goto state="playing" />
-			</action>
-		</event>
-	</state>
+	<!-- LOADING -->
+    <state name="loading">
+        <event>
+            <condition>
+				<frameLoaded />
+            </condition> 
+            <action>
+            	<click x="231" y="541" />
+                <goto state="playing" />
+            </action>
+        </event>
+    </state> 
 
 	<!-- PLAYING -->
 	<state name="playing">
@@ -49,18 +48,8 @@
 				<command name="pause" />
 			</condition>
 			<action>
-				<click x="15" y="771" />
+				<type key="32" />
 				<goto state="paused" />
-			</action>
-		</event>
-
-		<!-- Video ends -->
-		<event>
-			<condition>
-				<url matches="http://secure-dk.imrworldwide.com/.*du=([1-9][\.0-9]*)" />
-			</condition>
-			<action>
-				<goto state="end" />
 			</action>
 		</event>
 	</state>
@@ -72,7 +61,7 @@
 				<command name="play" />
 			</condition>
 			<action>
-				<click x="15" y="771" />
+				<type key="32" />
 				<goto state="playing" />
 			</action>
 		</event>

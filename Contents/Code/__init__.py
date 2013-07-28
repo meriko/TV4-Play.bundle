@@ -1,181 +1,249 @@
-# -*- coding: utf-8 -*-
-import re
+TITLE  = 'TV4 Play'
+PREFIX = '/video/tv4play'
 
-###################################################################################################
+BASE_URL = 'http://www.tv4play.se'  
 
-PLUGIN_TITLE = 'TV4 Play'
-PLUGIN_PREFIX = '/video/tv4play'
+RE_VIDEO_ID = '(?<=video_id=)[0-9]+'
 
-PROGRAMS_XML = 'http://wwwb.tv4play.se/?view=xml'
-PROGRAMS_HTML = 'http://www.tv4play.se/%s'
-PROGRAM_VIEWS_XML = 'http://wwwb.tv4play.se/%s?view=xml'
+HTTP_USER_AGENT   = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/536.26.17 (KHTML, like Gecko) Version/6.0.2 Safari/536.26.17"
 
-NS_VIDEOAPI = {'v':'http://www.tv4.se/xml/videoapi'}
-NS_CONTENTINFO = {'c':'http://www.tv4.se/xml/contentinfo'}
-
-DATE_FORMAT = '%d/%m/%Y'
-PLAYER_URL = 'http://wwwb.tv4play.se/polopoly_fs/1.939636!approot/embedvideo.swf?videoId=%s&vpmeta=flags%%3Dnooverlays&autoload=true'
-
-CACHE_INTERVAL = CACHE_1HOUR
-CACHE_INTERVAL_LONG = CACHE_1MONTH
+CATEGORIES_URL   = 'http://api.tv4play.se/video/categories/list'
+PROGRAMS_URL     = 'http://api.tv4play.se/video/program_formats/list.json?sorttype=name&premium_filter=free&category=%s'
+CLIPS_URL        = 'http://api.tv4play.se/video/tv4play/programs/search.json?premium=false&includedrm=wvm&video_types=clips&livepublished=false&sorttype=date&start=%s&rows=%s&categoryids=%s&' 
+EPISODES_URL     = 'http://api.tv4play.se/video/tv4play/programs/search.json?premium=false&includedrm=wvm&video_types=programs&livepublished=false&sorttype=date&start=%s&rows=%s&categoryids=%s&'
 
 # Default artwork and icon(s)
-PLUGIN_ARTWORK = 'art-default.jpg'
-PLUGIN_ICON_DEFAULT = 'icon-default.png'
-PLUGIN_ICON_MORE = 'icon-more.png'
+ART   = "art-default.jpg"
+THUMB = 'icon-default.png'
 
-###################################################################################################
+ITEMS_PER_PAGE = 25
 
+NO_PROGRAMS_FOUND_HEADER  = "Inga program funna"
+NO_PROGRAMS_FOUND_MESSAGE = unicode("Kunde ej hitta några program. Var god försök senare")
+
+####################################################################################################
 def Start():
-  Plugin.AddPrefixHandler(PLUGIN_PREFIX, MainMenu, PLUGIN_TITLE, PLUGIN_ICON_DEFAULT, PLUGIN_ARTWORK)
-  Plugin.AddViewGroup('ListItems', viewMode='List', mediaType='items')
+    # Set the default ObjectContainer attributes
+    ObjectContainer.title1 = TITLE
+    ObjectContainer.art    = R(ART)
 
-  # Set the default MediaContainer attributes
-  MediaContainer.title1 = PLUGIN_TITLE
-  MediaContainer.viewGroup = 'ListItems'
-  MediaContainer.art = R(PLUGIN_ARTWORK)
+    # Set the default cache time
+    HTTP.CacheTime             = 300
+    HTTP.Headers['User-agent'] = HTTP_USER_AGENT
 
-  # Set the default cache time
-  HTTP.CacheTime = CACHE_INTERVAL
-  HTTP.Headers['User-Agent'] = 'Plex/Nine'
-
-###################################################################################################
-
+####################################################################################################
+@handler(PREFIX, TITLE, thumb = THUMB, art = ART)
 def MainMenu():
-  dir = MediaContainer()
+    oc = ObjectContainer()
+    
+    # Add all programs
+    oc.add(
+        DirectoryObject(
+            key = Callback(TV4Shows, categoryName = "Alla program", categoryId = " "), 
+            title = "Alla program"
+        )
+    )
+    
+    # Add categories
+    categories = JSON.ObjectFromURL(CATEGORIES_URL)
+    
+    for category in categories:
+        oc.add(
+            DirectoryObject(
+                key = Callback(TV4Shows, categoryName = category["name"], categoryId = unicode(category["id"])),
+                title = unicode(category["name"]),
+                thumb = None
+            )
+        )
 
-  categories = XML.ElementFromURL(PROGRAMS_XML, errors='ignore').xpath('/v:xml/v:category/v:subcategories/v:category[@level="1"]', namespaces=NS_VIDEOAPI)
-  for category in categories:
-    name = category.get('name')
-    dir.Append(Function(DirectoryItem(TV4Programs, title=name, thumb=Function(GetThumb, name=name)), title=name, thumb=name))
-
-  return dir
-
-####################################################################################################
-
-def TV4Programs(sender, title, thumb, use_xml=True, program_id=None):
-  dir = MediaContainer(title2=title)
-
-  # Use the 'main' XML file (wwwb.tv4play.se/?view=xml) to display tv programs
-  # This function (TV4Programs) is also used if we're deeper in the website and stumble upon an XML file that contains empty nodes for an extra level of 'subcategories'
-  if use_xml:
-    programs = XML.ElementFromURL(PROGRAMS_XML, errors='ignore').xpath('/v:xml/v:category/v:subcategories/v:category[@name="'+title+'"]/v:subcategories/v:category[@level="2"]', namespaces=NS_VIDEOAPI)
-    for program in programs:
-      name = program.get('name')
-      # We need the id of this program, unfortunately this isn't available in the XML file and we need to grab it from the program's home page
-      # We don't do this here, since we only need the id if a user selects this tv program. Otherwise we'd have to loop over all the programs, which would increase load times
-      url = program.xpath('./v:views/v:view/v:url', namespaces=NS_VIDEOAPI)[0].text
-      url = re.findall('^(.+?)\?view=xml', url)[0]
-      dir.Append(Function(DirectoryItem(TV4Views, title=name, thumb=Function(GetThumb, name=name, parent=thumb)), title=name, url=url, thumb=thumb))
-  else:
-    content = HTTP.Request( PROGRAMS_HTML % program_id ).content
-    programs = XML.ElementFromString(content).xpath('//ul/li/div/p/a')
-    for program in programs:
-      # Cleanup the name
-      name = program.text.strip().title()
-      id = program.get('href')
-      id = re.findall('^/(.+?)\?ajax', id)[0]
-      url = PROGRAM_VIEWS_XML % id
-      dir.Append(Function(DirectoryItem(TV4Views, title=name, thumb=Function(GetThumb, name=name, parent=thumb)), title=name, url=url, thumb=thumb, lookup_id=False))
-  return dir
+    return oc
 
 ####################################################################################################
+@route(PREFIX + '/TV4Shows')
+def TV4Shows(categoryName, categoryId):
+    oc         = ObjectContainer(title2 = unicode(categoryName))
+    categoryId = String.Quote(categoryId)
+    
+    try:
+        programs = JSON.ObjectFromURL(PROGRAMS_URL % categoryId)
 
-def TV4Views(sender, title, url, thumb, lookup_id=True):
-  dir = MediaContainer(title2=title)
+        for program in programs:
+            oc.add(
+                DirectoryObject( 
+                    key = 
+                        Callback(
+                    	    TV4ShowChoice, 
+                            showName = program["name"], 
+                            showId = unicode(program["id"]), 
+                            art = GetImgURL(program["largeimage_highres"]),
+                            thumb = GetImgURL(program["image"]),
+                            summary = program["text"]
+                        ), 
+                    title = unicode(program["name"]),
+                    summary = unicode(program["text"]), 
+                    thumb = GetImgURL(program["image"]),
+                    art = GetImgURL(program["largeimage_highres"])
+                )
+            )
+    
+    except:
+        oc.header  = NO_PROGRAMS_FOUND_HEADER
+        oc.message = unicode("Kunde ej få kontakt med TV4 servern")
 
-  # When we want to display the different views of a program, we first need to know what the id of that program is so we can download the right XML file.
-  # But... we only know the program's name and url of its home page. The url is used here to find the program's id.
-  if lookup_id == True:
-    program_id = HTML.ElementFromURL(url, errors='ignore', cacheTime=CACHE_INTERVAL_LONG).xpath('/html/body//div[@id="browser"]//ul[@class="breadcrumbs"]//li[last()]/h3/a')[0]
-    program_id = program_id.get('href')
-    program_id = re.findall('browser=([0-9\.]+)', program_id)[0]
-    url = PROGRAM_VIEWS_XML % program_id
-
-  # Get the page content first with HTTP.Request so we can check if we get something back
-  content = HTTP.Request(url, cacheTime=CACHE_INTERVAL_LONG).content
-
-  if content != None and content != '':
-    views = XML.ElementFromString(content).xpath('/v:xml/v:category/v:views/v:view', namespaces=NS_VIDEOAPI)
-
-    if len(views) > 0:
-      # If there are views check to see if they're not empty nodes (like the ones for local news for example)
-      if len( views[0].xpath('./*') ) > 0:
-        for view in views:
-          name = view.get('name')
-          kind = view.get('kind')
-          url = view.xpath('./v:url', namespaces=NS_VIDEOAPI)[0].text
-
-          # Cleanup the name if it's all caps *and* the url contains the string 'keywords'
-          if name.isupper() and url.find('keywords') != -1:
-            name = name.title()
-
-          # If the type of view is 'cliplist', the linked XML file contains videos
-          if kind == 'cliplist':
-            dir.Append(Function(DirectoryItem(TV4Videos, title=name, thumb=Function(GetThumb, name=name, parent=thumb)), title=name, url=url))
-          # If the type of view is categorylist, we have to iterate at least onces more over the contents of the linked XML file
-          # In this case we don't need to look for an id, instead we can use the provided link (which contains an id)
-          elif kind == 'categorylist':
-            dir.Append(Function(DirectoryItem(TV4Views, title=name, thumb=Function(GetThumb, name=name, parent=thumb)), title=name, url=url, thumb=thumb, lookup_id=False))
-      else:
-        # If the nodes do not contain any childs, try to use information from the piece of HTML code that's used on the website in XHR
-        # This means that there's probably an extra level of subcategories
-        dir = TV4Programs(sender, title, thumb, use_xml=False, program_id=program_id)
-
-  return dir
+    return oc
 
 ####################################################################################################
-
-def TV4Videos(sender, title, url, page=1):
-  dir = MediaContainer(title2=title)
-
-  videoContent = XML.ElementFromURL(url + '&page=' + str(page), errors='ignore')
-
-  videos = videoContent.xpath('/c:xml/c:contentList/c:content', namespaces=NS_CONTENTINFO)
-  for video in videos:
-    # Filter to display free content only (although the website doesn't contain paid content at the moment - Nov 28, 2009)
-    requiresPayment = video.xpath('./c:requiresPayment', namespaces=NS_CONTENTINFO)[0].text
-
-    if requiresPayment == 'false':
-      contentId = video.get('contentID')
-      image = video.xpath('./c:imageURL', namespaces=NS_CONTENTINFO)[0].text
-      vtitle = video.xpath('./c:title', namespaces=NS_CONTENTINFO)[0].text
-      date = video.xpath('./c:publishedDate', namespaces=NS_CONTENTINFO)[0].text
-      date = Datetime.ParseDate(date).strftime(DATE_FORMAT)
-
-      dir.Append(WebVideoItem(PLAYER_URL % contentId, title=vtitle, infolabel=date, thumb=image))
-
-  # Check to see if there's more than one page with videos. If so, add a 'More' item to the list
-  pagination = videoContent.xpath('/c:xml/c:contentList', namespaces=NS_CONTENTINFO)[0].get('page')
-  if pagination != None:
-    pagination = re.findall('Page ([0-9]+) of ([0-9]+)', pagination)
-    if len(pagination) > 0 and ( int(pagination[0][0]) < int(pagination[0][1]) ):
-      dir.Append(Function(DirectoryItem(TV4Videos, title='Mer ...', thumb=R(PLUGIN_ICON_MORE)), title=title, url=url, page=page+1))
-
-  return dir
+@route(PREFIX + '/TV4ShowChoice')
+def TV4ShowChoice(showName, showId, art, thumb, summary):
+    oc = ObjectContainer(title2 = unicode(showName))
+        
+    showId   = String.Quote(showId)
+    episodes = JSON.ObjectFromURL(EPISODES_URL % (0, 0, showId))
+    clips    = JSON.ObjectFromURL(CLIPS_URL % (0, 0, showId))
+        
+    if episodes['total_hits'] > 0 and clips['total_hits'] > 0: 
+        oc.add(
+            DirectoryObject(
+            	key = 
+            		Callback(
+                        TV4Videos, 
+                        showName = showName, 
+                        showId = showId, 
+                        art = art,
+                        episodeReq = True
+                    ), 
+                title = "Hela program",
+                thumb = thumb,
+                summary = unicode(summary),
+                art = art
+            )
+        )
+                    
+        oc.add(
+            DirectoryObject(
+            	key = 
+                	Callback(
+                		TV4Videos, 
+                        showName = showName, 
+                        showId = showId, 
+                        art = art,
+                        episodeReq = False
+                    ), 
+                title = "Klipp",
+                thumb = thumb,
+                summary = unicode(summary),
+                art = art
+            )
+        )
+              
+    elif episodes['total_hits'] > 0 or clips['total_hits'] > 0:
+        return TV4Videos(
+                showName = showName, 
+                showId = showId, 
+                art = art,
+                episodeReq = episodes['total_hits'] > 0
+        )
+        
+    else:
+        oc.header  = NO_PROGRAMS_FOUND_HEADER
+        oc.message = NO_PROGRAMS_FOUND_MESSAGE 
+              
+    return oc
 
 ####################################################################################################
+@route(PREFIX + '/TV4Videos', episodeReq = bool, offset = int)
+def TV4Videos(showName, showId, art, episodeReq, offset = 0):
+    oc = ObjectContainer(title2 = unicode(showName))
 
-def GetThumb(name=None, parent=None):
-  if name == 'Aktualitet':
-    return Redirect( R('icon-Aktualitet.png') )
-  elif name == 'Hem & fritid':
-    return Redirect( R('icon-HemOchFritid.png') )
-  elif name == 'Nyheter':
-    return Redirect( R('icon-Nyheter.png') )
-  elif name == 'Nöje & humor':
-    return Redirect( R('icon-NojeOchHumor.png') )
-  elif name == 'Sport':
-    return Redirect( R('icon-Sport.png') )
-  elif name == 'Fotbollskanalen':
-    return Redirect( R('icon-Fotbollskanalen.png') )
-  elif name == 'Hockeykanalen':
-    return Redirect( R('icon-Hockeykanalen.png') )
-  elif name == 'Lattjo lajban':
-    return Redirect( R('icon-LattjoLajban.png') )
-  elif name == 'Barn':
-    return Redirect( R(PLUGIN_ICON_DEFAULT) )
-  elif parent != None:
-    return GetThumb(name=parent)
-  else:
-    return Redirect( R(PLUGIN_ICON_DEFAULT) )
+    if episodeReq: 
+        videos = JSON.ObjectFromURL(EPISODES_URL % (offset, ITEMS_PER_PAGE, showId))
+    else:
+        videos = JSON.ObjectFromURL(CLIPS_URL % (offset, ITEMS_PER_PAGE, showId))
+
+    # Add videos from JSON info
+    for video in videos['results']:
+        url = BASE_URL + "/program/" + "%s?video_id=%s" % (showId, str(video['vmanprogid']))
+                        
+        try:
+            publishdate = str(video['publishdate'])
+            year        = publishdate[0:4]
+            month       = publishdate[4:6]
+            day         = publishdate[6:8]
+            airdate     = Datetime.ParseDate(year + '-' + month + '-' + day)
+        except:
+            airdate = None
+          
+        if video['lead'] != None:
+            description = video['lead']
+        else:
+            description = ""  
+          
+        try:
+            episode = int(Regex('.* *Del *([0-9]+) *.*', Regex.IGNORECASE).search(video['name']).groups()[0])
+        except:
+            episode = None        
+          
+        if video['availability']['human'] != None:
+            availabilty = video['availability']['human']
+        else:
+            availabilty = ""                      
+
+        if episodeReq:
+            oc.add(
+                EpisodeObject(
+                    url = url,
+                    title = unicode(video['name']),
+                    index = episode,
+                    summary = unicode(description + " " + availabilty),
+                    show = unicode(showName),
+                    thumb = video['originalimage'],
+                    art = art,
+                    originally_available_at = airdate
+                )
+            )       
+        else:
+            oc.add(
+                VideoClipObject(
+                    url = url,
+                    title = unicode(video['name']),
+                    summary = unicode(description + " " + availabilty),
+                    thumb = video['originalimage'],
+                    art = art,
+                    originally_available_at = airdate
+                )
+            )       
+
+    if offset + ITEMS_PER_PAGE < videos['total_hits']:
+        nextPage = (offset / ITEMS_PER_PAGE) + 2
+        lastPage = (videos['total_hits'] / ITEMS_PER_PAGE) + 1
+        oc.add(
+            NextPageObject(
+                key = 
+                    Callback(
+                    	TV4Videos,
+                        showName = showName, 
+                        showId = showId, 
+                        art = art,
+                        episodeReq = episodeReq,
+                        offset = offset + ITEMS_PER_PAGE
+                    ), 
+                title = "Fler ...",
+                summary = "Vidare till sida " + str(nextPage) + " av " + str(lastPage),
+                art = art
+            )
+        )   
+
+    if len(oc) < 1:
+        oc.header  = NO_PROGRAMS_FOUND_HEADER
+        oc.message = NO_PROGRAMS_FOUND_MESSAGE
+
+    return oc
+
+####################################################################################################
+def GetImgURL(url):
+    if '.jpg' in url:
+        return url[url.rfind("http") : url.rfind(".jpg") + 4]
+    elif '.png' in url: 
+        return url[url.rfind("http") : url.rfind(".png") + 4]
+    else:
+        return url[url.rfind("http") :]
