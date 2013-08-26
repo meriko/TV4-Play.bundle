@@ -12,10 +12,6 @@ PROGRAMS_URL     = 'http://api.tv4play.se/video/program_formats/list.json?sortty
 CLIPS_URL        = 'http://api.tv4play.se/video/tv4play/programs/search.json?premium=false&includedrm=wvm&video_types=clips&livepublished=false&sorttype=date&start=%s&rows=%s&categoryids=%s&' 
 EPISODES_URL     = 'http://api.tv4play.se/video/tv4play/programs/search.json?premium=false&includedrm=wvm&video_types=programs&livepublished=false&sorttype=date&start=%s&rows=%s&categoryids=%s&'
 
-# Default artwork and icon(s)
-ART   = "art-default.jpg"
-THUMB = 'icon-default.png'
-
 ITEMS_PER_PAGE = 25
 
 NO_PROGRAMS_FOUND_HEADER  = "Inga program funna"
@@ -32,7 +28,7 @@ def Start():
     HTTP.Headers['User-agent'] = HTTP_USER_AGENT
 
 ####################################################################################################
-@handler(PREFIX, TITLE, thumb = THUMB, art = ART)
+@handler(PREFIX, TITLE)
 def MainMenu():
     oc = ObjectContainer()
     
