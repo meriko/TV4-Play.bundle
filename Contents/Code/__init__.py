@@ -1,16 +1,16 @@
 TITLE  = 'TV4 Play'
 PREFIX = '/video/tv4play'
 
-BASE_URL = 'http://www.tv4play.se'  
+BASE_URL = 'http://www.tv4play.se'
 
 RE_VIDEO_ID = '(?<=video_id=)[0-9]+'
 
 HTTP_USER_AGENT   = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/536.26.17 (KHTML, like Gecko) Version/6.0.2 Safari/536.26.17"
 
-CATEGORIES_URL   = 'http://api.tv4play.se/video/categories/list'
-PROGRAMS_URL     = 'http://api.tv4play.se/video/program_formats/list.json?sorttype=name&premium_filter=free&category=%s'
-CLIPS_URL        = 'http://api.tv4play.se/video/tv4play/programs/search.json?premium=false&includedrm=wvm&video_types=clips&livepublished=false&sorttype=date&start=%s&rows=%s&categoryids=%s&' 
-EPISODES_URL     = 'http://api.tv4play.se/video/tv4play/programs/search.json?premium=false&includedrm=wvm&video_types=programs&livepublished=false&sorttype=date&start=%s&rows=%s&categoryids=%s&'
+CATEGORIES_URL   = 'http://webapi.tv4play.se/video/categories/list'
+PROGRAMS_URL     = 'http://webapi.tv4play.se/video/program_formats/list.json?sorttype=name&premium_filter=free&category=%s'
+CLIPS_URL        = 'http://webapi.tv4play.se/video/tv4play/programs/search.json?premium=false&includedrm=wvm&video_types=clips&livepublished=false&sorttype=date&start=%s&rows=%s&categoryids=%s&' 
+EPISODES_URL     = 'http://webapi.tv4play.se/video/tv4play/programs/search.json?premium=false&includedrm=wvm&video_types=programs&livepublished=false&sorttype=date&start=%s&rows=%s&categoryids=%s&'
 
 ITEMS_PER_PAGE = 25
 
@@ -21,7 +21,6 @@ NO_PROGRAMS_FOUND_MESSAGE = unicode("Kunde ej hitta några program. Var god för
 def Start():
     # Set the default ObjectContainer attributes
     ObjectContainer.title1 = TITLE
-    ObjectContainer.art    = R(ART)
 
     # Set the default cache time
     HTTP.CacheTime             = 300
