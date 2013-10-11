@@ -710,6 +710,7 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
                 )
             )
 
+    sortOnAirData(oc)
     if offset + ITEMS_PER_PAGE < videos['total_hits']:
         nextPage = (offset / ITEMS_PER_PAGE) + 2
         lastPage = (videos['total_hits'] / ITEMS_PER_PAGE) + 1
@@ -837,3 +838,8 @@ def GetImgURL(url):
     else:
         return url[url.rfind("http") :]
 
+def sortOnAirData(Objects):
+    for obj in Objects.objects:
+        if obj.originally_available_at == None:
+            return Objects.objects.reverse()
+    return Objects.objects.sort(key=lambda obj: (obj.originally_available_at,obj.title))
