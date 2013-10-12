@@ -30,7 +30,7 @@ def Start():
 @handler(PREFIX, TITLE)
 def MainMenu():
     oc = ObjectContainer()
-    
+
     # Add all programs
     oc.add(
         DirectoryObject(
@@ -38,10 +38,10 @@ def MainMenu():
             title = "Alla program"
         )
     )
-    
+
     # Add categories
     categories = JSON.ObjectFromURL(CATEGORIES_URL)
-    
+
     for category in categories:
         oc.add(
             DirectoryObject(
@@ -53,7 +53,7 @@ def MainMenu():
 
     # Add search
     searchTitle = unicode("Sök")
-    
+
     oc.add(
         InputDirectoryObject(
             key = Callback(Search, title = searchTitle),
@@ -67,7 +67,7 @@ def MainMenu():
 ####################################################################################################
 @route(PREFIX + '/TV4Shows')
 def TV4Shows(categoryName, categoryId):
-    oc         = ObjectContainer(title2 = unicode(categoryName))
+    oc = ObjectContainer(title2 = unicode(categoryName))
     categoryId = String.Quote(categoryId)
 
     return GetTV4Shows(oc, PROGRAMS_URL % categoryId)
@@ -76,72 +76,72 @@ def TV4Shows(categoryName, categoryId):
 @route(PREFIX + '/TV4ShowChoice')
 def TV4ShowChoice(showName, showId, art, thumb, summary):
     oc = ObjectContainer(title2 = unicode(showName))
-        
+
     showId   = String.Quote(showId)
     episodes = JSON.ObjectFromURL(EPISODES_URL % (0, 0, showId))
     clips    = JSON.ObjectFromURL(CLIPS_URL % (0, 0, showId))
-        
-    if episodes['total_hits'] > 0 and clips['total_hits'] > 0: 
+
+    if episodes['total_hits'] > 0 and clips['total_hits'] > 0:
         oc.add(
             DirectoryObject(
-            	key = 
+            	key =
             		Callback(
-                        TV4Videos, 
-                        showName = showName, 
-                        showId = showId, 
+                        TV4Videos,
+                        showName = showName,
+                        showId = showId,
                         art = art,
                         episodeReq = True
-                    ), 
+                    ),
                 title = "Hela program",
                 thumb = thumb,
                 summary = unicode(summary),
                 art = art
             )
         )
-                    
+
         oc.add(
             DirectoryObject(
-            	key = 
+            	key =
                 	Callback(
-                		TV4Videos, 
-                        showName = showName, 
-                        showId = showId, 
+                		TV4Videos,
+                        showName = showName,
+                        showId = showId,
                         art = art,
                         episodeReq = False
-                    ), 
+                    ),
                 title = "Klipp",
                 thumb = thumb,
                 summary = unicode(summary),
                 art = art
             )
         )
-              
+
     elif episodes['total_hits'] > 0 or clips['total_hits'] > 0:
         return TV4Videos(
-                showName = showName, 
-                showId = showId, 
+                showName = showName,
+                showId = showId,
                 art = art,
                 episodeReq = episodes['total_hits'] > 0
         )
-        
+
     else:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
-        oc.message = NO_PROGRAMS_FOUND_MESSAGE 
-              
+        oc.message = NO_PROGRAMS_FOUND_MESSAGE
+
     return oc
 
 ####################################################################################################
 @route(PREFIX + '/TV4Videos', episodeReq = bool, offset = int)
 def TV4Videos(showName, showId, art, episodeReq, offset = 0, queryUrl = None, query = None):
     showName = unicode(showName)
-    
+
     oc = ObjectContainer(title2 = showName)
-    
+
     orgShowName = showName
-    
+
     if queryUrl != None:
         videos = JSON.ObjectFromURL(queryUrl % (offset, ITEMS_PER_PAGE, query))
-    elif episodeReq: 
+    elif episodeReq:
         videos = JSON.ObjectFromURL(EPISODES_URL % (offset, ITEMS_PER_PAGE, showId))
     else:
         videos = JSON.ObjectFromURL(CLIPS_URL % (offset, ITEMS_PER_PAGE, showId))
@@ -150,11 +150,11 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, queryUrl = None, qu
     for video in videos['results']:
 
         if queryUrl != None:
-            showName = video['category']    
-            showId   = unicode(video['nid'])
-            
+            showName = unicode(video['category'])
+            showId   = String.Quote(video['nid'])
+
         url = BASE_URL + "/program/" + "%s?video_id=%s" % (showId, str(video['vmanprogid']))
-                        
+
         try:
             publishdate = str(video['publishdate'])
             year        = publishdate[0:4]
@@ -163,21 +163,21 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, queryUrl = None, qu
             airdate     = Datetime.ParseDate(year + '-' + month + '-' + day)
         except:
             airdate = None
-          
+
         if video['lead'] != None:
             description = video['lead']
         else:
-            description = ""  
-          
+            description = ""
+
         try:
             episode = int(Regex('.* *Del *([0-9]+) *.*', Regex.IGNORECASE).search(video['name']).groups()[0])
         except:
-            episode = None        
-          
+            episode = None
+
         if video['availability']['human'] != None:
             availabilty = "\r\n\r\n" + video['availability']['human']
         else:
-            availabilty = ""                      
+            availabilty = ""
 
         if episodeReq:
             oc.add(
@@ -191,7 +191,7 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, queryUrl = None, qu
                     art = art,
                     originally_available_at = airdate
                 )
-            )       
+            )
         else:
             oc.add(
                 VideoClipObject(
@@ -202,29 +202,29 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, queryUrl = None, qu
                     art = art,
                     originally_available_at = airdate
                 )
-            )       
+            )
 
     if offset + ITEMS_PER_PAGE < videos['total_hits']:
         nextPage = (offset / ITEMS_PER_PAGE) + 2
         lastPage = (videos['total_hits'] / ITEMS_PER_PAGE) + 1
         oc.add(
             NextPageObject(
-                key = 
+                key =
                     Callback(
                     	TV4Videos,
-                        showName = orgShowName, 
-                        showId = showId, 
+                        showName = orgShowName,
+                        showId = showId,
                         art = art,
                         episodeReq = episodeReq,
                         offset = offset + ITEMS_PER_PAGE,
                         queryUrl = queryUrl,
                         query    = query
-                    ), 
+                    ),
                 title = "Fler ...",
                 summary = "Vidare till sida " + str(nextPage) + " av " + str(lastPage),
                 art = art
             )
-        )   
+        )
 
     if len(oc) < 1:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
@@ -238,23 +238,23 @@ def GetTV4Shows(oc, url):
         programs = JSON.ObjectFromURL(url)
         for program in programs:
             oc.add(
-                DirectoryObject( 
-                    key = 
+                DirectoryObject(
+                    key =
                         Callback(
-                            TV4ShowChoice, 
-                            showName = program["name"], 
-                            showId = unicode(program["id"]), 
+                            TV4ShowChoice,
+                            showName = program["name"],
+                            showId = unicode(program["id"]),
                             art = GetImgURL(program["largeimage_highres"]),
                             thumb = GetImgURL(program["image"]),
                             summary = program["text"]
-                        ), 
+                        ),
                     title = unicode(program["name"]),
-                    summary = unicode(program["text"]), 
+                    summary = unicode(program["text"]),
                     thumb = GetImgURL(program["image"]),
                     art = GetImgURL(program["largeimage_highres"])
                 )
             )
-    
+
     except:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
         oc.message = unicode("Kunde ej få kontakt med TV4 servern")
@@ -294,7 +294,7 @@ def Search(query, title):
             oc = ReturnSearchHits(clipQuery, query, oc, "Klipp", False, typeHits > 1)
         if len(programs) > 0:
             oc = GetTV4Shows(oc, programQuery % query)
-        
+
     return oc
 
 ####################################################################################################
@@ -319,7 +319,7 @@ def ReturnSearchHits(url, query, result, directoryTitle, episodeReq, createDirec
     else:
         return TV4Videos(
                 showName   = unicode("Sök") + " - " + unicode(directoryTitle),
-                showId     = None, 
+                showId     = None,
                 art        = None,
                 episodeReq = episodeReq,
                 queryUrl   = url,
@@ -330,8 +330,7 @@ def ReturnSearchHits(url, query, result, directoryTitle, episodeReq, createDirec
 def GetImgURL(url):
     if '.jpg' in url:
         return url[url.rfind("http") : url.rfind(".jpg") + 4]
-    elif '.png' in url: 
+    elif '.png' in url:
         return url[url.rfind("http") : url.rfind(".png") + 4]
     else:
         return url[url.rfind("http") :]
-
