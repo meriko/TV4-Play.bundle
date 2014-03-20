@@ -41,6 +41,9 @@ DAYS = [
     unicode("Söndag")
 ]
 
+CACHE_DICT = "cacheDict"
+DICT_V = 1
+
 ####################################################################################################
 def Start():
     # Set the default ObjectContainer attributes
@@ -87,9 +90,6 @@ def ValidatePrefs():
 ###################################################################################################
 def GetProgramsURL(name = '', category = ''):
     url = API_BASE_URL + '/video/program_formats/list.json?sorttype=name&name=%s&category=%s' % (name, category)
-    if Prefs['onlyfree'] and not Prefs['premium']:
-        url = url + '&premium_filter=free'
-    
     return url
     
 ###################################################################################################
@@ -140,6 +140,21 @@ def GetListingsURL(date = ""):
         url = url + '&premium=false'
         
     return url
+
+    if not "version" in Dict:
+        Dict.Reset()
+        Dict["version"] = DICT_V
+        Dict.Save()
+
+    if Dict["version"] != DICT_V:
+        Dict.Reset()
+        Dict["version"] = DICT_V
+        Dict.Save()
+
+    if not CACHE_DICT in Dict:
+        Dict[CACHE_DICT] = {}
+        Dict.Save()
+    Thread.Create(CachePremiumCount)
 
 ####################################################################################################
 @handler(PREFIX, TITLE)
@@ -580,29 +595,29 @@ def TV4ShowChoice(showName, showId, art, thumb, summary):
     episodes = JSON.ObjectFromURL(GetVideosURL(id = showId, episodes = True))
     clips    = JSON.ObjectFromURL(GetVideosURL(id = showId, episodes = False))
 
-    if clips['total_hits'] > 0:
-        oc.add(
-            DirectoryObject(
-                key =
-                    Callback(
-                        TV4Videos,
-                        showName = showName,
-                        showId = showId,
-                        art = art,
-                        episodeReq = False
-                    ),
-                title = "Klipp",
-                thumb = thumb,
-                summary = unicode(summary),
-                art = art
-            )
-        )
+    if episodes['total_hits'] > 0 and clips['total_hits'] > 0:
+        ClipsObject = DirectoryObject(key     = Callback(TV4Videos, 
+                                                         showName = showName, 
+                                                         showId = showId, 
+                                                         art = art,
+                                                         episodeReq = False
+                                                         ),
+                                      title   = "Klipp",
+                                      thumb   = thumb,
+                                      summary = unicode(summary),
+                                      art     = art
+                                      )
+        return TV4Videos(showName, showId, art, True, 0, None, None, ClipsObject)
 
-    if episodes['total_hits'] > 0:
-        episodeoc = TV4Videos(showName, showId, art, True)
-        
-        for object in episodeoc.objects:
-            oc.add(object)
+    elif episodes['total_hits'] > 0 or clips['total_hits'] > 0:
+        if clips['total_hits'] > 0:
+            showName = showName + " - Klipp"
+        return TV4Videos(
+                showName = showName,
+                showId = showId,
+                art = art,
+                episodeReq = episodes['total_hits'] > 0
+        )
 
     if len(oc) < 1:  
         oc.header  = NO_PROGRAMS_FOUND_HEADER
@@ -612,7 +627,7 @@ def TV4ShowChoice(showName, showId, art, thumb, summary):
 
 ####################################################################################################
 @route(PREFIX + '/TV4Videos', episodeReq = bool, offset = int)
-def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url = None):
+def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url = None, clips = None):
     showName = unicode(showName)
 
     oc = ObjectContainer(title2 = showName)
@@ -731,6 +746,11 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
                 art = art
             )
         )
+    if clips != None:
+        # Prepend Clips directory
+        oc.objects.reverse()
+        oc.add(clips)
+        oc.objects.reverse()
 
     if len(oc) < 1:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
@@ -739,10 +759,34 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
     return oc
 
 ####################################################################################################
+def AnyFreeVideos(showId):
+
+    if Prefs['onlyfree'] and not Prefs['premium']:
+        try:
+            d = Dict[CACHE_DICT]
+            if showId in d:
+                td = Datetime.Now() - d[showId][2]
+                if td.days < 7:
+                    return d[showId][1]
+
+            episodes = JSON.ObjectFromURL(GetVideosURL(episodes = True, text = String.Quote(str(showId))))
+            d[showId] = (showId, episodes['total_hits'] > 0, Datetime.Now())
+            Dict[CACHE_DICT] = d
+            Dict.Save()
+            return episodes['total_hits'] > 0
+        except Exception as e:
+            return False
+    else:
+        return True
+
+####################################################################################################
 def GetTV4Shows(oc, url):
     try:
         programs = JSON.ObjectFromURL(url)
         for program in programs:
+            if program['premium']:
+                if AnyFreeVideos(program["id"]) == False:
+                    continue
             oc.add(
                 DirectoryObject(
                     key =
@@ -772,6 +816,9 @@ def GetTV4Shows(oc, url):
 def Search(query, title):
     oc = ObjectContainer(title2 = unicode(title))
 
+    unquotedQuery = query
+    query = String.Quote(query)
+
     programQueryURL = GetProgramsURL(name = String.Quote(query))
     episodeQueryURL = GetVideosURL(episodes = True, text = String.Quote(query))
     clipQueryURL    = GetVideosURL(episodes = False, text = String.Quote(query))
@@ -781,7 +828,15 @@ def Search(query, title):
     clips    = JSON.ObjectFromURL(clipQueryURL)
 
     typeHits = 0
-    if len(programs) > 0:
+    # Check for either a free or a premium with free episode program hit.
+    programHits = False
+    for program in programs:
+        if program['premium'] and AnyFreeVideos(program["id"]) == True:
+            continue
+        programHits = True
+        break
+    
+    if programHits:
         typeHits = typeHits+1
     if episodes['total_hits'] > 0:
         typeHits = typeHits+1
@@ -790,13 +845,13 @@ def Search(query, title):
 
     if typeHits == 0:
         oc.header = unicode("Sökresultat"),
-        oc.message = unicode("Kunde ej hitta något för '%s'" % query)
+        oc.message = unicode("Kunde ej hitta något för '%s'" % unquotedQuery)
     else:
         if episodes['total_hits'] > 0:
             oc = ReturnSearchHits(episodeQueryURL, query, oc, "Hela Program", True, typeHits > 1)
         if clips['total_hits'] > 0:
             oc = ReturnSearchHits(clipQueryURL, query, oc, "Klipp", False, typeHits > 1)
-        if len(programs) > 0:
+        if programHits:
             oc = GetTV4Shows(oc, programQueryURL)
 
     return oc
@@ -843,3 +898,12 @@ def sortOnAirData(Objects):
         if obj.originally_available_at == None:
             return Objects.objects.reverse()
     return Objects.objects.sort(key=lambda obj: (obj.originally_available_at,obj.title))
+
+def CachePremiumCount():
+    if Prefs['onlyfree'] and not Prefs['premium']:
+        return
+
+    programs = JSON.ObjectFromURL(GetProgramsURL())
+    for program in programs:
+        if program['premium']:
+            AnyFreeVideos(program["id"])
