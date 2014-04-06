@@ -18,11 +18,14 @@ def MetadataObjectForURL(url):
     except:
         raise Ex.MediaNotAvailable
 
-    if xmlElement.xpath("//asset//drmProtected/text()")[0].lower() == 'true':
-        raise Ex.MediaNotAvailable
+    try:
+        if xmlElement.xpath("//asset//drmProtected/text()")[0].lower() == 'true':
+            raise Ex.MediaNotAvailable
+    except:
+        pass
 
     try:
-        title = xmlElement.xpath("//asset//title/text()")[0]
+        title = unicode(xmlElement.xpath("//asset//title/text()")[0])
     except:
         title = None
              
@@ -35,7 +38,7 @@ def MetadataObjectForURL(url):
         episode = None
 
     try:  
-        summary = xmlElement.xpath("//asset//description/text()")[0]
+        summary = unicode(xmlElement.xpath("//asset//description/text()")[0])
     except:
         summary = None
 
@@ -139,8 +142,17 @@ def PlayVideo(id):
                                 swf_url = 'http://www.tv4play.se/flash/tv4playflashlets.swf'
                             )
                         )
+            elif clip.startswith('http') and 'manifest.f4m' in clip:
+                return IndirectResponse(
+                    VideoClipObject,
+                    key = HTTPLiveStreamURL(GetClientDependentURL(clip.replace("/z/","/i/").replace("manifest.f4m", "master.m3u8")))
+                )
 
-    raise Ex.MediaNotAvailable
+        if 'NOT_STARTED' in XML.StringFromElement(xmlElement):
+            raise Ex.LiveMediaNotStarted
+
+    else:
+        raise Ex.MediaNotAvailable
 
 ###########################################################
 def GetClientDependentURL(url):
