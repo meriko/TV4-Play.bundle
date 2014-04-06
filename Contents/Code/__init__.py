@@ -209,12 +209,15 @@ def MainMenu():
         )
     )
 
-    oc.add(
-        DirectoryObject(
-            key = Callback(TV4Categories),
-            title = unicode("Kategorier")
+    categories = JSON.ObjectFromURL(CATEGORIES_URL)
+
+    for category in categories:
+        oc.add(
+            DirectoryObject(
+                key = Callback(TV4Shows, categoryName = category["name"], categoryId = unicode(category["id"])),
+                title = unicode(category["name"])
+            )
         )
-    )
 
     if Prefs['premium'] or not Prefs['onlyfree']:
         oc.add(
@@ -364,23 +367,6 @@ def TV4Live():
                 )
             )
             
-    return oc
-
-####################################################################################################
-@route(PREFIX + '/TV4Categories')
-def TV4Categories():
-    oc = ObjectContainer(title2 = unicode('Kategorier'))
-    
-    categories = JSON.ObjectFromURL(CATEGORIES_URL)
-
-    for category in categories:
-        oc.add(
-            DirectoryObject(
-                key = Callback(TV4Shows, categoryName = category["name"], categoryId = unicode(category["id"])),
-                title = unicode(category["name"])
-            )
-        )
-        
     return oc
     
 ####################################################################################################
