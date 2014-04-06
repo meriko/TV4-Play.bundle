@@ -565,9 +565,8 @@ def TV4Movies(offset = 0):
 @route(PREFIX + '/TV4Shows', offset = int)
 def TV4Shows(categoryName, categoryId, offset = 0):
     oc = ObjectContainer(title2 = unicode(categoryName))
-    categoryId = String.Quote(categoryId)
 
-    oc = GetTV4Shows(oc, GetProgramsURL(category = categoryId))
+    oc = GetTV4Shows(oc, GetProgramsURL(category = String.Quote(categoryId)))
     oc.title2 = unicode(categoryName)
     
     totalNoShows = len(oc)
