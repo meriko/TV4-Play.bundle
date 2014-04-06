@@ -3,6 +3,9 @@ from datetime import datetime
 TITLE  = 'TV4 Play(beta)'
 PREFIX = '/video/tv4playbeta'
 
+ART  = R('art-default.jpg')
+ICON = R('icon-default.png')
+
 BASE_URL = 'http://www.tv4play.se'
 
 RE_VIDEO_ID = '(?<=video_id=)[0-9]+'
@@ -42,6 +45,9 @@ DAYS = [
 def Start():
     # Set the default ObjectContainer attributes
     ObjectContainer.title1 = TITLE
+    ObjectContainer.art    = ART
+    
+    DirectoryObject.thumb = ICON
 
     # Set the default cache time
     HTTP.CacheTime             = 300
@@ -185,7 +191,7 @@ def Login():
     return LoggedIn()   
 
 ####################################################################################################
-@handler(PREFIX, TITLE)
+@handler(PREFIX, TITLE, art = ART, thumb = ICON)
 def MainMenu():
     oc = ObjectContainer(no_cache = True)
 
@@ -247,7 +253,8 @@ def MainMenu():
         InputDirectoryObject(
             key = Callback(Search, title = searchTitle),
             title  = searchTitle,
-            prompt = searchTitle
+            prompt = searchTitle,
+            thumb = ICON
         )
     )
 
