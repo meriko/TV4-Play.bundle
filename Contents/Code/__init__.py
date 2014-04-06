@@ -1,7 +1,7 @@
 from datetime import datetime
 
-TITLE  = 'TV4 Play'
-PREFIX = '/video/tv4play'
+TITLE  = 'TV4 Play(beta)'
+PREFIX = '/video/tv4playbeta'
 
 BASE_URL = 'http://www.tv4play.se'
 
