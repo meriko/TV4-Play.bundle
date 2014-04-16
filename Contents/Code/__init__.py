@@ -186,7 +186,7 @@ def Login():
     postData['https']              = ''
     postData['my_page']            = 'true'
     
-    response = HTTP.Request(SESSION_URL, values = postData, cacheTime = 0)
+    response = HTTP.Request(SESSION_URL, values = postData, cacheTime = 0).content
     
     return LoggedIn()   
 
