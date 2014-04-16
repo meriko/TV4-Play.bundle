@@ -1,6 +1,10 @@
 RE_VIDEO_ID     = Regex('(?<=video_id=)[0-9]+')
 RE_SHOW_EPISODE = Regex('(.*) *(Del) *([0-9]+) *(.*)', Regex.IGNORECASE)
 
+SESSION_URL   = 'https://www.tv4play.se/session'
+API_BASE_URL  = 'http://premium.tv4play.se/api/web/asset/'
+API_VIDEO_URL = API_BASE_URL + '%s/play'
+
 ####################################################################################################
 def NormalizeURL(url):
     return url
@@ -14,7 +18,7 @@ def MetadataObjectForURL(url):
         raise Ex.MediaNotAvailable
 
     try:
-        xmlElement = XML.ElementFromURL("http://premium.tv4play.se/api/web/asset/" + id)
+        xmlElement = XML.ElementFromURL(API_BASE_URL + id)
     except:
         raise Ex.MediaNotAvailable
 
@@ -106,7 +110,13 @@ def PlayVideo(id):
     
     try:
         # Try get info on HLS streams
-        xmlElement = XML.ElementFromURL(url = "http://premium.tv4play.se/api/web/asset/" + id + "/play?protocol=hls&videoFormat=MP4")
+        if Prefs['premium'] and Prefs['email'] and Prefs['password']:
+            xmlElement = XML.ElementFromURL(
+                url = API_VIDEO_URL % id + "?protocol=hls&videoFormat=MP4", 
+                headers = {'Cookie': HTTP.CookiesForURL(SESSION_URL)}
+            )
+        else:
+            xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id + "?protocol=hls&videoFormat=MP4")
     except:
         pass
 
@@ -123,7 +133,13 @@ def PlayVideo(id):
 
     # Try without specifying HLS
     try:
-        xmlElement = XML.ElementFromURL(url = "http://premium.tv4play.se/api/web/asset/" + id + "/play")
+        if Prefs['premium'] and Prefs['email'] and Prefs['password']:
+            xmlElement = XML.ElementFromURL(
+                url = API_VIDEO_URL % id, 
+                headers = {'Cookie': HTTP.CookiesForURL(SESSION_URL)}
+            )
+        else:
+            xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id)
     except:
         pass
 
@@ -133,15 +149,18 @@ def PlayVideo(id):
             clip = item.xpath(".//url/text()")[0]
             
             if base.startswith('rtmp'):
-                    return IndirectResponse(
-                        VideoClipObject,
-                        key = 
-                            RTMPVideoURL(
-                                url = base.replace("rtmp", "rtmpe"), 
-                                clip = clip,
-                                swf_url = 'http://www.tv4play.se/flash/tv4playflashlets.swf'
-                            )
+                if not base.startswith('rtmpe'):
+                    base = base.replace('rtmp', 'rtmpe')
+                
+                return IndirectResponse(
+                    VideoClipObject,
+                    key = 
+                        RTMPVideoURL(
+                            url = base.replace("rtmp", "rtmpe"), 
+                            clip = clip,
+                            swf_url = 'http://www.tv4play.se/flash/tv4playflashlets.swf'
                         )
+                    )
             elif clip.startswith('http') and 'manifest.f4m' in clip:
                 return IndirectResponse(
                     VideoClipObject,
