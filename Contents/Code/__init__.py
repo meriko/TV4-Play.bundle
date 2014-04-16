@@ -301,14 +301,13 @@ def TV4Channels():
         else:
             oc.add(
                 VideoClipObject(
-                    url = TEMPLATE_VIDEO_URL % ('kanaler', channel['program_nid'].replace('live-', ''), channel['id']),
+                    url = TEMPLATE_VIDEO_URL % ('kanaler', String.Quote(channel['program_nid']).replace('live-', ''), channel['id']),
                     title = channel['title'],
                     thumb = thumb,
                     summary = summary
                 )
             )
- 
-        
+   
     return oc
 
 ####################################################################################################
@@ -319,7 +318,7 @@ def TV4Live():
     broadcasts = JSON.ObjectFromURL(GetLiveURL())
     
     for video in broadcasts['results']:            
-        url = TEMPLATE_VIDEO_URL % ('program', video['nid'], str(video['vmanprogid']))
+        url = TEMPLATE_VIDEO_URL % ('program', String.Quote(video['nid']), str(video['vmanprogid']))
 
         try:
             publishdate = str(video['ontime'])
