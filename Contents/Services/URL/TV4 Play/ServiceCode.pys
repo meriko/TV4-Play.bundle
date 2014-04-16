@@ -156,7 +156,7 @@ def PlayVideo(id):
                     VideoClipObject,
                     key = 
                         RTMPVideoURL(
-                            url = base.replace("rtmp", "rtmpe"), 
+                            url = base, 
                             clip = clip,
                             swf_url = 'http://www.tv4play.se/flash/tv4playflashlets.swf'
                         )
