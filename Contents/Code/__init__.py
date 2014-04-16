@@ -151,7 +151,7 @@ def LoggedIn():
     if not PreferencesSetForLogin():
         return False
         
-    response = HTTP.Request(SESSION_URL, cacheTime = 0)
+    response = HTTP.Request(SESSION_URL, cacheTime = 0).content
     success  = response.strip().lower() == 'ok'
     
     if not success:
