@@ -160,7 +160,7 @@ def LoggedIn():
     return success     
 
 ###################################################################################################
-def Login():        
+def Login():    
     # Check that the user has entered all required parameters for Login
     if not PreferencesSetForLogin():
         return False
@@ -173,22 +173,28 @@ def Login():
     element = HTML.ElementFromURL(LOGIN_URL, cacheTime = 0)
     
     try:
-        authenticity_token = element.xpath("//input[@id = 'authenticity_token']")[0]
+        authenticity_token = element.xpath("//input[@id = 'authenticity_token']/@value")[0]
     except:
         Log.Error("Could not retrieve authenticity token!")
         return False
+        
+    try:
+        https = element.xpath("//input[@id = 'https']/@value")[0]
+    except:
+        Log.Warn("Using default value for https")
+        https = ''
         
     postData = {}
     postData['user_name']          = Prefs['email']
     postData['password']           = Prefs['password']
     postData['remember_me']        = 'true'
     postData['authenticity_token'] = authenticity_token
-    postData['https']              = ''
+    postData['https']              = https
     postData['my_page']            = 'true'
-    
+
     response = HTTP.Request(SESSION_URL, values = postData, cacheTime = 0).content
     
-    return LoggedIn()   
+    return LoggedIn()
 
 ####################################################################################################
 @handler(PREFIX, TITLE, art = ART, thumb = ICON)

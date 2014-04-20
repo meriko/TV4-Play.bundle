@@ -1,7 +1,6 @@
 RE_VIDEO_ID     = Regex('(?<=video_id=)[0-9]+')
 RE_SHOW_EPISODE = Regex('(.*) *(Del) *([0-9]+) *(.*)', Regex.IGNORECASE)
 
-SESSION_URL   = 'https://www.tv4play.se/session'
 API_BASE_URL  = 'http://premium.tv4play.se/api/web/asset/'
 API_VIDEO_URL = API_BASE_URL + '%s/play'
 
@@ -110,40 +109,30 @@ def PlayVideo(id):
     
     try:
         # Try get info on HLS streams
-        if Prefs['premium'] and Prefs['email'] and Prefs['password']:
-            xmlElement = XML.ElementFromURL(
-                url = API_VIDEO_URL % id + "?protocol=hls&videoFormat=MP4", 
-                headers = {'Cookie': HTTP.CookiesForURL(SESSION_URL)}
-            )
-        else:
-            xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id + "?protocol=hls&videoFormat=MP4")
+        xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id + "?protocol=hls&videoFormat=MP4")
     except:
         pass
 
     if xmlElement:
+        Log(XML.StringFromElement(xmlElement))
         for item in xmlElement.xpath("//playback//items")[0]:
             base = item.xpath(".//base/text()")[0]
             clip = item.xpath(".//url/text()")[0]
             
-            if base.startswith('http') and base.endswith('.m3u8'):
+            if base.startswith('http') and '.m3u8' in base:
                     return IndirectResponse(
                         VideoClipObject,
                         key = HTTPLiveStreamURL(GetClientDependentURL(clip))
                     )
-
+    
     # Try without specifying HLS
     try:
-        if Prefs['premium'] and Prefs['email'] and Prefs['password']:
-            xmlElement = XML.ElementFromURL(
-                url = API_VIDEO_URL % id, 
-                headers = {'Cookie': HTTP.CookiesForURL(SESSION_URL)}
-            )
-        else:
-            xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id)
+        xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id)
     except:
         pass
 
     if xmlElement:
+        Log(XML.StringFromElement(xmlElement))
         for item in xmlElement.xpath("//playback//items")[0]:
             base = item.xpath(".//base/text()")[0]
             clip = item.xpath(".//url/text()")[0]
@@ -164,7 +153,7 @@ def PlayVideo(id):
             elif clip.startswith('http') and 'manifest.f4m' in clip:
                 return IndirectResponse(
                     VideoClipObject,
-                    key = HTTPLiveStreamURL(GetClientDependentURL(clip.replace("/z/","/i/").replace("manifest.f4m", "master.m3u8")))
+                    key = HTTPLiveStreamURL(GetClientDependentURL(clip.replace("hds-f", "-i").replace("/z/","/i/").replace("manifest.f4m", "master.m3u8")))
                 )
 
         if 'NOT_STARTED' in XML.StringFromElement(xmlElement):
