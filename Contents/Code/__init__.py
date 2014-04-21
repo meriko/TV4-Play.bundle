@@ -67,7 +67,7 @@ def ValidatePrefs():
     
     if PreferencesSetForLogin():
         if Login():
-            oc.header = "Inloggad",
+            oc.header = "Inloggad"
             oc.message = unicode("Du är nu inloggad")
         else:
             oc.header = "Inloggningen misslyckades"
@@ -408,7 +408,15 @@ def TV4MostWatched():
             xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id + "?protocol=hls", headers = {'Cookie' : HTTP.CookiesForURL(SESSION_URL)})
             Log("HLS(cookies):\r\n" + XML.StringFromElement(xmlElement))
         except:
-            Log("HLS: No!")
+            try:
+                content = HTTP.Request(API_VIDEO_URL % id + "?protocol=hls").content 
+                Log("HLS(content):\r\n" + content)
+            except:
+                try:
+                    content = HTTP.Request(API_VIDEO_URL % id + "?protocol=hls", headers = {'Cookie' : HTTP.CookiesForURL(SESSION_URL)}).content 
+                    Log("HLS(content, cookies):\r\n" + content)
+                except:
+                    Log("HLS: No!")
 
     try:
         xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id)
@@ -418,7 +426,15 @@ def TV4MostWatched():
             xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id, headers = {'Cookie' : HTTP.CookiesForURL(SESSION_URL)})
             Log("Normal(cookies):\r\n" + XML.StringFromElement(xmlElement))
         except:
-            Log("Normal: No!")
+            try:
+                content = HTTP.Request(API_VIDEO_URL % id).content 
+                Log("Normal(content):\r\n" + content)
+            except:
+                try:
+                    content = HTTP.Request(API_VIDEO_URL % id, headers = {'Cookie' : HTTP.CookiesForURL(SESSION_URL)}).content 
+                    Log("Normal(content, cookies):\r\n" + content)
+                except:
+                    Log("Normal: No!")
         
     oc = TV4Videos(
             showName   = "",
