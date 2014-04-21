@@ -150,12 +150,17 @@ def PreferencesSetForLogin():
 def LoggedIn():
     if not PreferencesSetForLogin():
         return False
-        
-    response = HTTP.Request(SESSION_URL, cacheTime = 0).content
-    success  = response.strip().lower() == 'ok'
     
-    if not success:
-        Log.Warn("Login attempt failed!")
+    try: 
+        response = HTTP.Request(SESSION_URL, cacheTime = 0).content
+        success  = response.strip().lower() == 'ok'
+    except:
+        success = False
+    
+    if success:
+        Log("Logged in!")
+    else:
+        Log("Not logged in")
         
     return success     
 
@@ -169,6 +174,8 @@ def Login():
     if LoggedIn():
         return True
 
+    Log("Trying to login...")
+    
     # ... else make a new login attempt
     element = HTML.ElementFromURL(LOGIN_URL, cacheTime = 0)
     
