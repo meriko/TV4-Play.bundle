@@ -20,6 +20,9 @@ CATEGORIES_URL   = API_BASE_URL + '/video/categories/list'
 CHANNELS_URL     = API_BASE_URL + '/play/video_assets?platform=web&is_channel=true'
 MOVIES_URL       = API_BASE_URL + '/play/movie_assets?platform=web&start=%s&rows=%s'
 
+API_VIDEO_BASE_URL = 'http://premium.tv4play.se/api/web/asset/'
+API_VIDEO_URL      = API_VIDEO_BASE_URL + '%s/play'
+
 TEMPLATE_VIDEO_URL = 'http://www.tv4play.se/%s/%s?video_id=%s'
 
 ITEMS_PER_PAGE = 25
@@ -396,6 +399,27 @@ def TV4Live():
 ####################################################################################################
 @route(PREFIX + '/TV4MostWatched')
 def TV4MostWatched():
+    id = '2463911'
+    try: 
+        xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id + "?protocol=hls")
+        Log("HLS:\r\n" + XML.StringFromElement(xmlElement))
+    except:
+        try:
+            xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id + "?protocol=hls", headers = {'Cookie' : HTTP.CookiesForURL(SESSION_URL)})
+            Log("HLS(cookies):\r\n" + XML.StringFromElement(xmlElement))
+        except:
+            Log("HLS: No!")
+
+    try:
+        xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id)
+        Log("Normal:\r\n" + XML.StringFromElement(xmlElement))
+    except:
+        try:
+            xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id, headers = {'Cookie' : HTTP.CookiesForURL(SESSION_URL)})
+            Log("Normal(cookies):\r\n" + XML.StringFromElement(xmlElement))
+        except:
+            Log("Normal: No!")
+        
     oc = TV4Videos(
             showName   = "",
             showId     = None,
