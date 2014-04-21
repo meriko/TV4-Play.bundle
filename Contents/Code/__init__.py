@@ -69,14 +69,19 @@ def ValidatePrefs():
         else:
             oc.header = "Inloggningen misslyckades"
             oc.message = unicode("Felaktigt användarnamn eller lösenord.")
+            return oc
             
     elif Prefs['premium']:
         oc.header = "Information saknas"
         oc.message = unicode("Användarnamn och/eller lösenord saknas.")
+        return oc
 
     elif not Prefs['onlyfree']:
         oc.header = unicode("Alla program")
         oc.message = PREMIUM_PREVIEW_NOTE
+    else:
+        oc.header = "Gratis"
+        oc.message = unicode("Visar endast program som är gratis.")
 
     if oc.message:
         oc.message = oc.message + "\r\n\r\n"
@@ -208,6 +213,13 @@ def Login():
 def MainMenu():
     oc = ObjectContainer(no_cache = True)
 
+    oc.add(
+        DirectoryObject(
+            key = Callback(ValidatePrefs),
+            title = "Logga In"
+        )
+    )
+    
     oc.add(
         DirectoryObject(
             key = Callback(TV4MostWatched),
