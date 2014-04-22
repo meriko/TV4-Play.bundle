@@ -160,8 +160,9 @@ def LoggedIn():
         return False
     
     try: 
-        response = HTTP.Request(SESSION_URL, cacheTime = 0).content
+        response = HTTP.Request(SESSION_URL).content
         success  = response.strip().lower() == 'ok'
+        Log(HTTP.CookiesForURL(SESSION_URL))
     except:
         success = False
     
@@ -318,7 +319,7 @@ def TV4Channels():
                 summary = None
         
         if not Prefs['premium']:
-           oc.add(
+            oc.add(
                 DirectoryObject(
                     key = Callback(TV4PremiumRequired),
                     title = channel['title'],
@@ -399,7 +400,7 @@ def TV4Live():
 ####################################################################################################
 @route(PREFIX + '/TV4MostWatched')
 def TV4MostWatched():
-    id = '2463911'
+    id = '2585370'
     try: 
         xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id + "?protocol=hls")
         Log("HLS:\r\n" + XML.StringFromElement(xmlElement))

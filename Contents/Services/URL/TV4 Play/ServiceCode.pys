@@ -4,6 +4,10 @@ RE_SHOW_EPISODE = Regex('(.*) *(Del) *([0-9]+) *(.*)', Regex.IGNORECASE)
 API_BASE_URL  = 'http://premium.tv4play.se/api/web/asset/'
 API_VIDEO_URL = API_BASE_URL + '%s/play'
 
+SESSION_URL = 'https://www.tv4play.se/session'
+
+USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/536.26.17 (KHTML, like Gecko) Version/6.0.2 Safari/536.26.17"
+
 ####################################################################################################
 def NormalizeURL(url):
     return url
@@ -107,33 +111,46 @@ def MediaObjectsForURL(url):
 def PlayVideo(id):
     xmlElement = None
     
+    headers = {}
+    headers['User-Agent'] = USER_AGENT
+    
+    cookies = HTTP.CookiesForURL(SESSION_URL)
+    if cookies:
+        headers['Cookie'] = cookies
+    
     try:
         # Try get info on HLS streams
-        xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id + "?protocol=hls&videoFormat=MP4")
+        xmlElement = XML.ElementFromURL(
+            url = API_VIDEO_URL % id + "?protocol=hls",
+            headers = headers
+        )
     except:
         pass
 
     if xmlElement:
         Log("HLS:\r\n" + XML.StringFromElement(xmlElement))
-        for item in xmlElement.xpath("//playback//items")[0]:
-            base = item.xpath(".//base/text()")[0]
-            clip = item.xpath(".//url/text()")[0]
+        for item in xmlElement.xpath("//playback//items//item"):
+            url         = item.xpath(".//url/text()")[0]
+            mediaFormat = item.xpath(".//mediaFormat/text()")[0]
             
-            if base.startswith('http') and '.m3u8' in base:
+            if url.startswith('http') and '.m3u8' in url and mediaFormat == 'mp4':
                     return IndirectResponse(
                         VideoClipObject,
-                        key = HTTPLiveStreamURL(GetClientDependentURL(clip))
+                        key = HTTPLiveStreamURL(GetClientDependentURL(url))
                     )
     
     # Try without specifying HLS
     try:
-        xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id)
+        xmlElement = XML.ElementFromURL(
+            url = API_VIDEO_URL % id,
+            headers = headers
+        )
     except:
         pass
 
     if xmlElement:
         Log(XML.StringFromElement(xmlElement))
-        for item in xmlElement.xpath("//playback//items")[0]:
+        for item in xmlElement.xpath("//playback//items//item"):
             base = item.xpath(".//base/text()")[0]
             clip = item.xpath(".//url/text()")[0]
             
@@ -150,6 +167,7 @@ def PlayVideo(id):
                             swf_url = 'http://www.tv4play.se/flash/tv4playflashlets.swf'
                         )
                     )
+            
             elif clip.startswith('http') and 'manifest.f4m' in clip:
                 return IndirectResponse(
                     VideoClipObject,
