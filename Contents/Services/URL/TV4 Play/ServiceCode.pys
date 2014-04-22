@@ -128,7 +128,6 @@ def PlayVideo(id):
         pass
 
     if xmlElement:
-        Log("HLS:\r\n" + XML.StringFromElement(xmlElement))
         for item in xmlElement.xpath("//playback//items//item"):
             url         = item.xpath(".//url/text()")[0]
             mediaFormat = item.xpath(".//mediaFormat/text()")[0]
@@ -149,7 +148,6 @@ def PlayVideo(id):
         pass
 
     if xmlElement:
-        Log(XML.StringFromElement(xmlElement))
         for item in xmlElement.xpath("//playback//items//item"):
             base = item.xpath(".//base/text()")[0]
             clip = item.xpath(".//url/text()")[0]

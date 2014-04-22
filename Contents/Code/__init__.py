@@ -28,10 +28,10 @@ TEMPLATE_VIDEO_URL = 'http://www.tv4play.se/%s/%s?video_id=%s'
 ITEMS_PER_PAGE = 25
 
 DISCLAIMER_NOTE = unicode("Vissa program är skyddade med DRM(Digital Rights Management). Dessa kan för närvarande ej spelas upp.")
-PREMIUM_PREVIEW_NOTE = unicode("Notera att du ej kan spela upp de program som endast är tillgängliga för Premium")
+PREMIUM_PREVIEW_NOTE = unicode("Notera att du ej kan spela upp de program som endast är tillgängliga för Premium.")
 
 NO_PROGRAMS_FOUND_HEADER  = "Inga program funna"
-NO_PROGRAMS_FOUND_MESSAGE = unicode("Kunde inte hitta några program.\r\n\r\n") + DISCLAIMER_NOTE
+NO_PROGRAMS_FOUND_MESSAGE = unicode("Kunde inte hitta några program. ") + DISCLAIMER_NOTE
 SERVER_MESSAGE            = unicode("Kunde ej få kontakt med TV4 servern")
 
 DAYS = [
@@ -71,7 +71,7 @@ def ValidatePrefs():
             oc.message = unicode("Du är nu inloggad")
         else:
             oc.header = "Inloggningen misslyckades"
-            oc.message = unicode("Felaktigt användarnamn eller lösenord.")
+            oc.message = unicode("Felaktigt användarnamn eller lösenord?")
             return oc
             
     elif Prefs['premium']:
@@ -85,11 +85,8 @@ def ValidatePrefs():
     else:
         oc.header = "Gratis"
         oc.message = unicode("Visar endast program som är gratis.")
-
-    if oc.message:
-        oc.message = oc.message + "\r\n\r\n"
          
-    oc.message = oc.message + DISCLAIMER_NOTE + unicode("\r\n\r\nStarta om för att inställningarna skall börja gälla")
+    oc.message = oc.message + ' ' + DISCLAIMER_NOTE + unicode(" Starta om för att inställningarna skall börja gälla.")
     
     return oc
 
@@ -162,7 +159,6 @@ def LoggedIn():
     try: 
         response = HTTP.Request(SESSION_URL).content
         success  = response.strip().lower() == 'ok'
-        Log(HTTP.CookiesForURL(SESSION_URL))
     except:
         success = False
     
@@ -216,13 +212,6 @@ def Login():
 @handler(PREFIX, TITLE, art = ART, thumb = ICON)
 def MainMenu():
     oc = ObjectContainer(no_cache = True)
-
-    oc.add(
-        DirectoryObject(
-            key = Callback(ValidatePrefs),
-            title = "Logga In"
-        )
-    )
     
     oc.add(
         DirectoryObject(
@@ -293,7 +282,7 @@ def MainMenu():
     oc.add(
         PrefsObject(
             title = unicode('Inställningar'),
-            summary = unicode('Logga in för att använda Premium\r\n\r\nDu kan även välja att visa alla program. ' + PREMIUM_PREVIEW_NOTE)
+            summary = unicode('Logga in för att använda Premium\r\n\r\nDu kan även välja att visa alla program för att se vad Premium innebär.\r\n\r\n' + DISCLAIMER_NOTE)
         )
     )
 
@@ -306,6 +295,10 @@ def TV4Channels():
     
     channels = JSON.ObjectFromURL(CHANNELS_URL)
     for channel in channels['results']:
+        if 'is_drm_protected' in channel:
+            if channel['is_drm_protected']:
+                continue
+                
         thumb = channel['image']
         if not thumb.startswith('http'):
             thumb = API_BASE_URL + '/play' + thumb
@@ -400,43 +393,6 @@ def TV4Live():
 ####################################################################################################
 @route(PREFIX + '/TV4MostWatched')
 def TV4MostWatched():
-    id = '2585370'
-    try: 
-        xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id + "?protocol=hls")
-        Log("HLS:\r\n" + XML.StringFromElement(xmlElement))
-    except:
-        try:
-            xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id + "?protocol=hls", headers = {'Cookie' : HTTP.CookiesForURL(SESSION_URL)})
-            Log("HLS(cookies):\r\n" + XML.StringFromElement(xmlElement))
-        except:
-            try:
-                content = HTTP.Request(API_VIDEO_URL % id + "?protocol=hls").content 
-                Log("HLS(content):\r\n" + content)
-            except:
-                try:
-                    content = HTTP.Request(API_VIDEO_URL % id + "?protocol=hls", headers = {'Cookie' : HTTP.CookiesForURL(SESSION_URL)}).content 
-                    Log("HLS(content, cookies):\r\n" + content)
-                except:
-                    Log("HLS: No!")
-
-    try:
-        xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id)
-        Log("Normal:\r\n" + XML.StringFromElement(xmlElement))
-    except:
-        try:
-            xmlElement = XML.ElementFromURL(url = API_VIDEO_URL % id, headers = {'Cookie' : HTTP.CookiesForURL(SESSION_URL)})
-            Log("Normal(cookies):\r\n" + XML.StringFromElement(xmlElement))
-        except:
-            try:
-                content = HTTP.Request(API_VIDEO_URL % id).content 
-                Log("Normal(content):\r\n" + content)
-            except:
-                try:
-                    content = HTTP.Request(API_VIDEO_URL % id, headers = {'Cookie' : HTTP.CookiesForURL(SESSION_URL)}).content 
-                    Log("Normal(content, cookies):\r\n" + content)
-                except:
-                    Log("Normal: No!")
-        
     oc = TV4Videos(
             showName   = "",
             showId     = None,
@@ -490,7 +446,7 @@ def TV4Catchup():
 def TV4ListingVideos(url, title):
     oc = ObjectContainer(title2 = title)
     
-    videos = JSON.ObjectFromURL(url, cacheTime = 60)
+    videos = JSON.ObjectFromURL(url)
 
     if not videos['channels']:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
@@ -547,6 +503,10 @@ def TV4Movies(offset = 0):
     
     movies = JSON.ObjectFromURL(MOVIES_URL % (offset, ITEMS_PER_PAGE))
     for movie in movies['results']:
+        if 'is_drm_protected' in movie:
+            if movie['is_drm_protected']:
+                continue
+        
         try:
             genres = (movie['genre'])
         except:
@@ -604,7 +564,7 @@ def TV4Movies(offset = 0):
             )
 
         
-    if offset + ITEMS_PER_PAGE < movies['total_hits']:
+    if len(oc) >= ITEMS_PER_PAGE and offset + ITEMS_PER_PAGE < movies['total_hits']:
         nextPage = (offset / ITEMS_PER_PAGE) + 2
         lastPage = (movies['total_hits'] / ITEMS_PER_PAGE) + 1
         oc.add(
