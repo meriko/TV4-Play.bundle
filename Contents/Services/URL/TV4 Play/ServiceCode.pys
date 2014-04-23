@@ -1,3 +1,5 @@
+from tv4play import Login
+
 RE_VIDEO_ID     = Regex('(?<=video_id=)[0-9]+')
 RE_SHOW_EPISODE = Regex('(.*) *(Del) *([0-9]+) *(.*)', Regex.IGNORECASE)
 
@@ -110,11 +112,14 @@ def MediaObjectsForURL(url):
 @indirect
 def PlayVideo(id):
     xmlElement = None
-    
+        
     headers = {}
     headers['User-Agent'] = USER_AGENT
     
-    cookies = HTTP.CookiesForURL(SESSION_URL)
+    cookies = None
+    if Prefs['premium'] and Prefs['email'] and Prefs['password']:
+        cookies = Login()
+        
     if cookies:
         headers['Cookie'] = cookies
     

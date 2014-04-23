@@ -1,5 +1,8 @@
 from datetime import datetime
 
+LoggedIn = SharedCodeService.tv4play.LoggedIn
+Login    = SharedCodeService.tv4play.Login
+
 TITLE  = 'TV4 Play(beta)'
 PREFIX = '/video/tv4playbeta'
 
@@ -11,9 +14,6 @@ BASE_URL = 'http://www.tv4play.se'
 RE_VIDEO_ID = '(?<=video_id=)[0-9]+'
 
 HTTP_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/536.26.17 (KHTML, like Gecko) Version/6.0.2 Safari/536.26.17"
-
-LOGIN_URL   = 'https://www.tv4play.se/session/new?https='
-SESSION_URL = 'https://www.tv4play.se/session'
 
 API_BASE_URL     = 'http://webapi.tv4play.se'
 CATEGORIES_URL   = API_BASE_URL + '/video/categories/list'
@@ -65,7 +65,7 @@ def ValidatePrefs():
     oc.header  = ""
     oc.message = ""
     
-    if PreferencesSetForLogin():
+    if Prefs['premium'] and Prefs['email'] and Prefs['password']:
         if Login():
             oc.header = "Inloggad"
             oc.message = unicode("Du är nu inloggad")
@@ -146,67 +146,6 @@ def GetListingsURL(date = ""):
         url = url + '&premium=false'
         
     return url
-
-###################################################################################################
-def PreferencesSetForLogin():
-    return (Prefs['premium'] and Prefs['email'] and Prefs['password'])
-
-###################################################################################################
-def LoggedIn():
-    if not PreferencesSetForLogin():
-        return False
-    
-    try: 
-        response = HTTP.Request(SESSION_URL).content
-        success  = response.strip().lower() == 'ok'
-    except:
-        success = False
-    
-    if success:
-        Log("Logged in!")
-    else:
-        Log("Not logged in")
-        
-    return success     
-
-###################################################################################################
-def Login():    
-    # Check that the user has entered all required parameters for Login
-    if not PreferencesSetForLogin():
-        return False
-
-    # Check if we are already logged in ...
-    if LoggedIn():
-        return True
-
-    Log("Trying to login...")
-    
-    # ... else make a new login attempt
-    element = HTML.ElementFromURL(LOGIN_URL, cacheTime = 0)
-    
-    try:
-        authenticity_token = element.xpath("//input[@id = 'authenticity_token']/@value")[0]
-    except:
-        Log.Error("Could not retrieve authenticity token!")
-        return False
-        
-    try:
-        https = element.xpath("//input[@id = 'https']/@value")[0]
-    except:
-        Log.Warn("Using default value for https")
-        https = ''
-        
-    postData = {}
-    postData['user_name']          = Prefs['email']
-    postData['password']           = Prefs['password']
-    postData['remember_me']        = 'true'
-    postData['authenticity_token'] = authenticity_token
-    postData['https']              = https
-    postData['my_page']            = 'true'
-
-    response = HTTP.Request(SESSION_URL, values = postData, cacheTime = 0).content
-    
-    return LoggedIn()
 
 ####################################################################################################
 @handler(PREFIX, TITLE, art = ART, thumb = ICON)
