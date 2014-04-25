@@ -3,8 +3,8 @@ from datetime import datetime
 LoggedIn = SharedCodeService.tv4play.LoggedIn
 Login    = SharedCodeService.tv4play.Login
 
-TITLE  = 'TV4 Play(beta)'
-PREFIX = '/video/tv4playbeta'
+TITLE  = 'TV4 Play'
+PREFIX = '/video/tv4play'
 
 ART  = R('art-default.jpg')
 ICON = R('icon-default.png')
