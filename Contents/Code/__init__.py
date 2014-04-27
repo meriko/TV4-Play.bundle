@@ -352,7 +352,7 @@ def TV4Live():
 @route(PREFIX + '/TV4MostWatched')
 def TV4MostWatched():
     oc = TV4Videos(
-            showName   = "",
+            showName   = None,
             showId     = None,
             art        = None,
             episodeReq = True,
@@ -625,6 +625,8 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
     oc = ObjectContainer(title2 = showName)
 
     orgShowName = showName
+    orgURL      = url
+    orgShowId   = showId
         
     if query:
         if episodeReq:
@@ -648,10 +650,10 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
         if 'drm_formats' in video:
             if len(video['drm_formats']) > 0:
                 continue
-            
-        if query or (url and not showId):
+        
+        if query or (orgURL and not orgShowId) or not orgShowName:
             showName = unicode(video['category'])
-            showId   = String.Quote(video['nid'])        
+            showId   = String.Quote(video['nid'])
 
         url = TEMPLATE_VIDEO_URL % ('program', showId, str(video['vmanprogid']))
 
