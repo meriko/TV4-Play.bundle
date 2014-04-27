@@ -198,14 +198,12 @@ def MainMenu():
         )
     )
 
-    # Live RTMP only works on PHT
-    if Client.Platform == 'Plex Home Theater':
-        oc.add(
-            DirectoryObject(
-                key = Callback(TV4Live),
-                title = unicode("Livesändningar")
-            )
+    oc.add(
+        DirectoryObject(
+            key = Callback(TV4Live),
+            title = unicode("Livesändningar")
         )
+    )
 
     searchTitle = unicode("Sök")
 
@@ -278,7 +276,27 @@ def TV4Live():
     
     broadcasts = JSON.ObjectFromURL(GetLiveURL())
     
-    for video in broadcasts['results']:            
+    for video in broadcasts['results']:
+        if not video['premium'] or LoggedIn():
+            compatibleBroadcastFound = False
+            
+            try:
+                xmlElement = XML.ElementFromURL(API_VIDEO_URL % str(video['vmanprogid']))
+            except:
+                continue
+            
+            for item in xmlElement.xpath("//playback//items//item"):
+                url = item.xpath(".//url/text()")[0]
+                
+                if url.startswith('rtmp') and Client.Platform == 'Plex Home Theater':
+                    compatibleBroadcastFound = True
+                
+                elif url.startswith('http') and '.f4m' in url:
+                    compatibleBroadcastFound = True
+            
+            if not compatibleBroadcastFound:
+                continue
+                   
         url = TEMPLATE_VIDEO_URL % ('program', String.Quote(video['nid']), str(video['vmanprogid']))
 
         try:
