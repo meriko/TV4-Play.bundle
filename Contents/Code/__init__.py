@@ -6,9 +6,6 @@ Login    = SharedCodeService.tv4play.Login
 TITLE  = 'TV4 Play'
 PREFIX = '/video/tv4play'
 
-ART  = R('art-default.jpg')
-ICON = R('icon-default.png')
-
 BASE_URL = 'http://www.tv4play.se'
 
 RE_VIDEO_ID = '(?<=video_id=)[0-9]+'
@@ -48,10 +45,7 @@ DAYS = [
 def Start():
     # Set the default ObjectContainer attributes
     ObjectContainer.title1 = TITLE
-    ObjectContainer.art    = ART
     
-    DirectoryObject.thumb = ICON
-
     # Set the default cache time
     HTTP.CacheTime             = 300
     HTTP.Headers['User-agent'] = HTTP_USER_AGENT
@@ -148,7 +142,7 @@ def GetListingsURL(date = ""):
     return url
 
 ####################################################################################################
-@handler(PREFIX, TITLE, art = ART, thumb = ICON)
+@handler(PREFIX, TITLE)
 def MainMenu():
     oc = ObjectContainer(no_cache = True)
     
@@ -211,8 +205,7 @@ def MainMenu():
         InputDirectoryObject(
             key = Callback(Search, title = searchTitle),
             title  = searchTitle,
-            prompt = searchTitle,
-            thumb = ICON
+            prompt = searchTitle
         )
     )
 
