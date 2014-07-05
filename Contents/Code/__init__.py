@@ -949,3 +949,7 @@ def CachePremiumCount():
     for program in programs:
         if program['premium']:
             AnyFreeVideos(program["id"])
+            
+            #To prevent this thread from stealing too much network time
+            #we force it to sleep for a second between each program
+            Thread.Sleep(1)
