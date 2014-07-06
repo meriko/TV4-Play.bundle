@@ -311,8 +311,7 @@ def TV4Live():
                             base = item.xpath(".//base/text()")[0] 
                             url  = item.xpath(".//url/text()")[0]
 
-                            # if base.startswith('rtmp') and Client.Platform == 'Plex Home Theater':
-                            if base.startswith('rtmp'):
+                            if base.startswith('rtmp') and Client.Platform == 'Plex Home Theater':
                                 compatibleBroadcastFound = True
                 
                             elif url.startswith('http') and '.f4m' in url:
