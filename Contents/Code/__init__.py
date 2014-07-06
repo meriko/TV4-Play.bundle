@@ -317,6 +317,9 @@ def TV4Live():
                 
                             elif url.startswith('http') and '.f4m' in url:
                                 compatibleBroadcastFound = True
+                                
+                            elif url.startswith('http') and '.m3u8' in url:
+                                compatibleBroadcastFound = True  
            
                         if not compatibleBroadcastFound:
                             continue
