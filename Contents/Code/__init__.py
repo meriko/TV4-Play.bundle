@@ -41,6 +41,9 @@ DAYS = [
     unicode("Söndag")
 ]
 
+CACHE_DICT = "cacheDict"
+DICT_V = 1
+
 ####################################################################################################
 def Start():
     # Set the default ObjectContainer attributes
@@ -49,7 +52,22 @@ def Start():
     # Set the default cache time
     HTTP.CacheTime             = 300
     HTTP.Headers['User-agent'] = HTTP_USER_AGENT
-    
+
+    if not "version" in Dict:
+        Dict.Reset()
+        Dict["version"] = DICT_V
+        Dict.Save()
+
+    if Dict["version"] != DICT_V:
+        Dict.Reset()
+        Dict["version"] = DICT_V
+        Dict.Save()
+
+    if not CACHE_DICT in Dict:
+        Dict[CACHE_DICT] = {}
+        Dict.Save()
+    Thread.Create(CachePremiumCount)
+
     # Try to login
     Login()
 
@@ -87,14 +105,11 @@ def ValidatePrefs():
 ###################################################################################################
 def GetProgramsURL(name = '', category = ''):
     url = API_BASE_URL + '/video/program_formats/list.json?sorttype=name&name=%s&category=%s' % (name, category)
-    if Prefs['onlyfree'] and not Prefs['premium']:
-        url = url + '&premium_filter=free'
-    
     return url
     
 ###################################################################################################
 def GetVideosURL(id = '', episodes = True, start = 0, rows = 0, text = ''):
-    url = API_BASE_URL + '/video/tv4play/programs/search.json?livepublished=false&sorttype=date&start=%s&rows=%s&categoryids=%s&text=%s' % (start, rows, id, text)
+    url = API_BASE_URL + '/video/tv4play/programs/search.json?livepublished=false&sorttype=date&order=asc&start=%s&rows=%s&categoryids=%s&text=%s' % (start, rows, id, text)
     if episodes:
         url = url + '&video_types=programs'
     else:
@@ -116,7 +131,7 @@ def GetVideoURL(id):
     
 ###################################################################################################
 def GetLiveURL():
-    url = API_BASE_URL + '/video/tv4play/programs/search.json?livepublished=true&sorttype=date&order=asc'
+    url = API_BASE_URL + '/video/tv4play/programs/search.json?livepublished=true&sorttype=date&order=asc&start=0&rows=100'
         
     if Prefs['onlyfree'] and not Prefs['premium']:
         url = url + '&premium=false'
@@ -269,27 +284,44 @@ def TV4Live():
     
     broadcasts = JSON.ObjectFromURL(GetLiveURL())
     
+    t = datetime.today()
+    today = "%04i%02i%02i" % (t.year, t.month, t.day)
+    t = t + Datetime.Delta(days = 2)
+    too_late = "%04i%02i%02i" % (t.year, t.month, t.day)
+
+    is_logged_in = LoggedIn()
+
     for video in broadcasts['results']:
-        if not video['premium'] or LoggedIn():
+        if not video['premium'] or is_logged_in:
             compatibleBroadcastFound = False
-            
-            try:
-                xmlElement = XML.ElementFromURL(API_VIDEO_URL % str(video['vmanprogid']))
-            except:
-                continue
-            
-            for item in xmlElement.xpath("//playback//items//item"):
-                base = item.xpath(".//base/text()")[0] 
-                url  = item.xpath(".//url/text()")[0]
+
+            if 'ontime' in video:
+                ontime = str(video['ontime'])
+                if today > ontime or ontime > too_late:
+                    # Only interested in broadcasts today and tomorrow
+                    continue
+                if today in ontime:
+                    try:
+                        xmlElement = XML.ElementFromURL(API_VIDEO_URL % str(video['vmanprogid']))
+                    except:
+                        continue
+                    if xmlElement.xpath("//playback//playbackStatus/text()")[0] != 'NOT_STARTED':
+                        # Check that a supported stream is available for ongoing shows
+                        for item in xmlElement.xpath("//playback//items//item"):
+                            base = item.xpath(".//base/text()")[0] 
+                            url  = item.xpath(".//url/text()")[0]
+
+                            if base.startswith('rtmp') and Client.Platform == 'Plex Home Theater':
+                                compatibleBroadcastFound = True
                 
-                if base.startswith('rtmp') and Client.Platform == 'Plex Home Theater':
-                    compatibleBroadcastFound = True
-                
-                elif url.startswith('http') and '.f4m' in url:
-                    compatibleBroadcastFound = True
-            
-            if not compatibleBroadcastFound:
-                continue
+                            elif url.startswith('http') and '.f4m' in url:
+                                compatibleBroadcastFound = True
+                                
+                            elif url.startswith('http') and '.m3u8' in url:
+                                compatibleBroadcastFound = True  
+           
+                        if not compatibleBroadcastFound:
+                            continue
                    
         url = TEMPLATE_VIDEO_URL % ('program', String.Quote(video['nid']), str(video['vmanprogid']))
 
@@ -308,10 +340,14 @@ def TV4Live():
             description = ""
 
         try:
-            start_hour   = str(video['ontime'])[8:10]
-            start_minute = str(video['ontime'])[10:12]
-            start        = start_hour + ":" + start_minute + "\r\n\r\n"
+            start_hour   = ontime[8:10]
+            start_minute = ontime[10:12]
+            prefix = start_hour + ":" + start_minute + " "
+            if not today in ontime:
+                prefix = "Imorgon " + prefix
+            start  = prefix + "\r\n\r\n"
         except:
+            prefix = ""
             start = ""
 
         if video['availability']['human'] != None:
@@ -319,23 +355,37 @@ def TV4Live():
         else:
             availabilty = ""
 
-        if not video['premium'] or LoggedIn():
+        title   = unicode(prefix + video['name'])
+        summary = unicode(start + description + " " + availabilty)
+        thumb   = video['originalimage']
+        if compatibleBroadcastFound and (not video['premium'] or is_logged_in):
             oc.add(
                 VideoClipObject(
                     url = url,
-                    title = unicode(video['name']),
-                    summary = unicode(start + description + " " + availabilty),
-                    thumb = video['originalimage'],
+                    title = title,
+                    summary = summary,
+                    thumb = thumb,
                     originally_available_at = airdate
                 )
             )
-        else:
+        elif not video['premium'] or is_logged_in:
+            # Show isn't available yet
             oc.add(
                 DirectoryObject(
-                    key = Callback(TV4PremiumRequired),
-                    title = unicode(video['name']),
-                    summary = unicode(start + description + " " + availabilty),
-                    thumb = video['originalimage']
+                    key     = Callback(TV4NotYetAvailable),
+                    title   = title,
+                    summary = summary,
+                    thumb   = thumb
+                )
+            )
+        else:
+            # Premium is required
+            oc.add(
+                DirectoryObject(
+                    key     = Callback(TV4PremiumRequired),
+                    title   = title,
+                    summary = summary,
+                    thumb   = thumb
                 )
             )
             
@@ -438,6 +488,14 @@ def TV4ListingVideos(url, title):
 
     return oc
    
+####################################################################################################
+@route(PREFIX + '/TV4NotYetAvailable')
+def TV4NotYetAvailable():
+    oc         = ObjectContainer()
+    oc.header  = unicode("Sändningen har inte startat ännu")
+    oc.message = unicode("Sändningen har inte startat ännu.")
+    return oc 
+
 ####################################################################################################
 @route(PREFIX + '/TV4PremiumRequired')
 def TV4PremiumRequired():
@@ -580,29 +638,29 @@ def TV4ShowChoice(showName, showId, art, thumb, summary):
     episodes = JSON.ObjectFromURL(GetVideosURL(id = showId, episodes = True))
     clips    = JSON.ObjectFromURL(GetVideosURL(id = showId, episodes = False))
 
-    if clips['total_hits'] > 0:
-        oc.add(
-            DirectoryObject(
-                key =
-                    Callback(
-                        TV4Videos,
-                        showName = showName,
-                        showId = showId,
-                        art = art,
-                        episodeReq = False
-                    ),
-                title = "Klipp",
-                thumb = thumb,
-                summary = unicode(summary),
-                art = art
-            )
-        )
+    if episodes['total_hits'] > 0 and clips['total_hits'] > 0:
+        ClipsObject = DirectoryObject(key     = Callback(TV4Videos, 
+                                                         showName = showName, 
+                                                         showId = showId, 
+                                                         art = art,
+                                                         episodeReq = False
+                                                         ),
+                                      title   = "Klipp",
+                                      thumb   = thumb,
+                                      summary = unicode(summary),
+                                      art     = art
+                                      )
+        return TV4Videos(showName, showId, art, True, 0, None, None, ClipsObject)
 
-    if episodes['total_hits'] > 0:
-        episodeoc = TV4Videos(showName, showId, art, True)
-        
-        for object in episodeoc.objects:
-            oc.add(object)
+    elif episodes['total_hits'] > 0 or clips['total_hits'] > 0:
+        if clips['total_hits'] > 0:
+            showName = showName + " - Klipp"
+        return TV4Videos(
+                showName = showName,
+                showId = showId,
+                art = art,
+                episodeReq = episodes['total_hits'] > 0
+        )
 
     if len(oc) < 1:  
         oc.header  = NO_PROGRAMS_FOUND_HEADER
@@ -612,7 +670,7 @@ def TV4ShowChoice(showName, showId, art, thumb, summary):
 
 ####################################################################################################
 @route(PREFIX + '/TV4Videos', episodeReq = bool, offset = int)
-def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url = None):
+def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url = None, clips = None):
     showName = unicode(showName)
 
     oc = ObjectContainer(title2 = showName)
@@ -620,7 +678,8 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
     orgShowName = showName
     orgURL      = url
     orgShowId   = showId
-        
+
+    is_logged_in = LoggedIn()
     if query:
         if episodeReq:
             videosURL = GetVideosURL(episodes = True, start = offset, rows = ITEMS_PER_PAGE, text = String.Quote(query))
@@ -674,7 +733,7 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
         else:
             availabilty = ""
 
-        if not video['premium'] or LoggedIn():
+        if not video['premium'] or is_logged_in:
             if episodeReq:
                 oc.add(
                     EpisodeObject(
@@ -709,7 +768,7 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
                     art = art,
                 )
             )
-
+    
     if offset + ITEMS_PER_PAGE < videos['total_hits']:
         nextPage = (offset / ITEMS_PER_PAGE) + 2
         lastPage = (videos['total_hits'] / ITEMS_PER_PAGE) + 1
@@ -730,6 +789,11 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
                 art = art
             )
         )
+    if clips != None:
+        # Prepend Clips directory
+        oc.objects.reverse()
+        oc.add(clips)
+        oc.objects.reverse()
 
     if len(oc) < 1:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
@@ -738,10 +802,33 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
     return oc
 
 ####################################################################################################
+def AnyFreeVideos(showId):
+    if not Prefs['premium']:
+        try:
+            d = Dict[CACHE_DICT]
+            if showId in d:
+                td = Datetime.Now() - d[showId][2]
+                if td.days < 7:
+                    return d[showId][1]
+
+            episodes = JSON.ObjectFromURL(GetVideosURL(episodes = True, text = String.Quote(str(showId))))
+            d[showId] = (showId, episodes['total_hits'] > 0, Datetime.Now())
+            Dict[CACHE_DICT] = d
+            Dict.Save()
+            return episodes['total_hits'] > 0
+        except Exception as e:
+            return False
+    else:
+        return True
+
+####################################################################################################
 def GetTV4Shows(oc, url):
     try:
         programs = JSON.ObjectFromURL(url)
         for program in programs:
+            if program['premium']:
+                if AnyFreeVideos(program["id"]) == False:
+                    continue
             oc.add(
                 DirectoryObject(
                     key =
@@ -771,16 +858,27 @@ def GetTV4Shows(oc, url):
 def Search(query, title):
     oc = ObjectContainer(title2 = unicode(title))
 
-    programQueryURL = GetProgramsURL(name = String.Quote(query))
-    episodeQueryURL = GetVideosURL(episodes = True, text = String.Quote(query))
-    clipQueryURL    = GetVideosURL(episodes = False, text = String.Quote(query))
+    unquotedQuery = query
+    query = String.Quote(query)
+
+    programQueryURL = GetProgramsURL(name = query)
+    episodeQueryURL = GetVideosURL(episodes = True, text = query)
+    clipQueryURL    = GetVideosURL(episodes = False, text = query)
     
     programs = JSON.ObjectFromURL(programQueryURL)
     episodes = JSON.ObjectFromURL(episodeQueryURL)
     clips    = JSON.ObjectFromURL(clipQueryURL)
 
     typeHits = 0
-    if len(programs) > 0:
+    # Check for either a free or a premium with free episode program hit.
+    programHits = False
+    for program in programs:
+        if program['premium'] and AnyFreeVideos(program["id"]) == False:
+            continue
+        programHits = True
+        break
+    
+    if programHits:
         typeHits = typeHits+1
     if episodes['total_hits'] > 0:
         typeHits = typeHits+1
@@ -789,13 +887,13 @@ def Search(query, title):
 
     if typeHits == 0:
         oc.header = unicode("Sökresultat"),
-        oc.message = unicode("Kunde ej hitta något för '%s'" % query)
+        oc.message = unicode("Kunde ej hitta något för '%s'" % unquotedQuery)
     else:
         if episodes['total_hits'] > 0:
             oc = ReturnSearchHits(episodeQueryURL, query, oc, "Hela Program", True, typeHits > 1)
         if clips['total_hits'] > 0:
             oc = ReturnSearchHits(clipQueryURL, query, oc, "Klipp", False, typeHits > 1)
-        if len(programs) > 0:
+        if programHits:
             oc = GetTV4Shows(oc, programQueryURL)
 
     return oc
@@ -837,3 +935,16 @@ def GetImgURL(url):
     else:
         return url[url.rfind("http") :]
 
+####################################################################################################
+def CachePremiumCount():
+    if Prefs['premium']:
+        return
+
+    programs = JSON.ObjectFromURL(GetProgramsURL())
+    for program in programs:
+        if program['premium']:
+            AnyFreeVideos(program["id"])
+            
+            #To prevent this thread from stealing too much network time
+            #we force it to sleep for a second between each program
+            Thread.Sleep(1)
