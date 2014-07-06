@@ -802,8 +802,7 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
 
 ####################################################################################################
 def AnyFreeVideos(showId):
-
-    if Prefs['onlyfree'] and not Prefs['premium']:
+    if not Prefs['premium']:
         try:
             d = Dict[CACHE_DICT]
             if showId in d:
@@ -942,7 +941,7 @@ def sortOnAirData(Objects):
     return Objects.objects.sort(key=lambda obj: (obj.originally_available_at,obj.title))
 
 def CachePremiumCount():
-    if Prefs['onlyfree'] and not Prefs['premium']:
+    if Prefs['premium']:
         return
 
     programs = JSON.ObjectFromURL(GetProgramsURL())
