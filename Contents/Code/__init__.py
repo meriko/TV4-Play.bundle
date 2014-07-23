@@ -188,13 +188,6 @@ def MainMenu():
     if Prefs['premium'] or not Prefs['onlyfree']:
         oc.add(
             DirectoryObject(
-                key = Callback(TV4Channels),
-                title = 'Kanaler'
-            )
-        )
-        
-        oc.add(
-            DirectoryObject(
                 key = Callback(TV4Movies),
                 title = 'Filmer'
             )
@@ -231,50 +224,6 @@ def MainMenu():
         )
     )
 
-    return oc
-
-####################################################################################################
-@route(PREFIX + '/TV4Channels')
-def TV4Channels():
-    oc = ObjectContainer(title2 = 'Kanaler')
-    
-    channels = JSON.ObjectFromURL(CHANNELS_URL)
-    for channel in channels['results']:
-        if 'is_drm_protected' in channel:
-            if channel['is_drm_protected']:
-                continue
-                
-        thumb = channel['image']
-        if not thumb.startswith('http'):
-            thumb = API_BASE_URL + '/play' + thumb
-        
-        try:
-            summary = channel['program']['channel']['about']
-        except:
-            try:
-                summary = channel['description']
-            except:
-                summary = None
-        
-        if not Prefs['premium']:
-            oc.add(
-                DirectoryObject(
-                    key = Callback(TV4PremiumRequired),
-                    title = channel['title'],
-                    thumb = thumb,
-                    summary = summary
-                )
-            )
-        else:
-            oc.add(
-                VideoClipObject(
-                    url = TEMPLATE_VIDEO_URL % ('kanaler', String.Quote(channel['program_nid']).replace('live-', ''), channel['id']),
-                    title = channel['title'],
-                    thumb = thumb,
-                    summary = summary
-                )
-            )
-   
     return oc
 
 ####################################################################################################
