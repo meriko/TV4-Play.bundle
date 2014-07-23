@@ -188,13 +188,6 @@ def MainMenu():
     if Prefs['premium'] or not Prefs['onlyfree']:
         oc.add(
             DirectoryObject(
-                key = Callback(TV4Channels),
-                title = 'Kanaler'
-            )
-        )
-        
-        oc.add(
-            DirectoryObject(
                 key = Callback(TV4Movies),
                 title = 'Filmer'
             )
