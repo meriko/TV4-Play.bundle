@@ -175,6 +175,52 @@ def MainMenu():
         )
     )
 
+    oc.add(
+        DirectoryObject(
+            key = Callback(TV4Live),
+            title = unicode("Livesändningar")
+        )
+    )
+
+    oc.add(
+        DirectoryObject(
+            key = Callback(TV4Categories), 
+            title = "Kategorier"
+        )
+    )
+
+    oc.add(
+        DirectoryObject(
+            key = Callback(TV4Shows, categoryName = "Alla program", categoryId = " "), 
+            title = "Alla program"
+        )
+    )
+
+    oc.add(
+        PrefsObject(
+            title = unicode('Inställningar'),
+            summary = unicode('Logga in för att använda Premium\r\n\r\nDu kan även välja att visa alla program för att se vad Premium innebär.\r\n\r\n' + DISCLAIMER_NOTE)
+        )
+    )
+
+    searchTitle = unicode("Sök")
+
+    oc.add(
+        InputDirectoryObject(
+            key = Callback(Search, title = searchTitle),
+            title  = searchTitle,
+            prompt = searchTitle
+        )
+    )
+
+    return oc
+
+####################################################################################################
+@route(PREFIX + '/TV4Categories')
+def TV4Categories():
+
+    oc = ObjectContainer(no_cache = True)
+
     categories = JSON.ObjectFromURL(CATEGORIES_URL)
 
     for category in categories:
@@ -193,37 +239,7 @@ def MainMenu():
             )
         )
 
-    oc.add(
-        DirectoryObject(
-            key = Callback(TV4Shows, categoryName = "Alla program", categoryId = " "), 
-            title = "Alla program"
-        )
-    )
-
-    oc.add(
-        DirectoryObject(
-            key = Callback(TV4Live),
-            title = unicode("Livesändningar")
-        )
-    )
-
-    searchTitle = unicode("Sök")
-
-    oc.add(
-        InputDirectoryObject(
-            key = Callback(Search, title = searchTitle),
-            title  = searchTitle,
-            prompt = searchTitle
-        )
-    )
-
-    oc.add(
-        PrefsObject(
-            title = unicode('Inställningar'),
-            summary = unicode('Logga in för att använda Premium\r\n\r\nDu kan även välja att visa alla program för att se vad Premium innebär.\r\n\r\n' + DISCLAIMER_NOTE)
-        )
-    )
-
+    oc.objects.sort(key=lambda obj: obj.title)
     return oc
 
 ####################################################################################################
@@ -244,38 +260,39 @@ def TV4Live():
         if not video['premium'] or is_logged_in:
             compatibleBroadcastFound = False
 
+            ontime = None
             if 'ontime' in video:
                 ontime = str(video['ontime'])
                 if today > ontime or ontime > too_late:
                     # Only interested in broadcasts today and tomorrow
                     continue
-                if today in ontime:
-                    try:
-                        xmlElement = XML.ElementFromURL(API_VIDEO_URL % str(video['vmanprogid']))
-                    except:
-                        continue
-                    if xmlElement.xpath("//playback//playbackStatus/text()")[0] != 'NOT_STARTED':
-                        # Check that a supported stream is available for ongoing shows
-                        for item in xmlElement.xpath("//playback//items//item"):
-                            base = item.xpath(".//base/text()")[0] 
-                            url  = item.xpath(".//url/text()")[0]
+            if not ontime or today in ontime:
+                try:
+                    xmlElement = XML.ElementFromURL(API_VIDEO_URL % str(video['vmanprogid']))
+                except:
+                    continue
+                if xmlElement.xpath("//playback//playbackStatus/text()")[0] != 'NOT_STARTED':
+                    # Check that a supported stream is available for ongoing shows
+                    for item in xmlElement.xpath("//playback//items//item"):
+                        base = item.xpath(".//base/text()")[0] 
+                        url  = item.xpath(".//url/text()")[0]
 
-                            if base.startswith('rtmp') and Client.Platform == 'Plex Home Theater':
-                                compatibleBroadcastFound = True
-                
-                            elif url.startswith('http') and '.f4m' in url:
-                                compatibleBroadcastFound = True
-                                
-                            elif url.startswith('http') and '.m3u8' in url:
-                                compatibleBroadcastFound = True  
+                        if base.startswith('rtmp') and Client.Platform == 'Plex Home Theater':
+                            compatibleBroadcastFound = True
+
+                        elif url.startswith('http') and '.f4m' in url:
+                            compatibleBroadcastFound = True
+
+                        elif url.startswith('http') and '.m3u8' in url:
+                            compatibleBroadcastFound = True
            
-                        if not compatibleBroadcastFound:
-                            continue
+                    if not compatibleBroadcastFound:
+                        continue
                    
         url = TEMPLATE_VIDEO_URL % ('program', String.Quote(video['nid']), str(video['vmanprogid']))
 
         try:
-            publishdate = str(video['ontime'])
+            publishdate = ontime
             year        = publishdate[0:4]
             month       = publishdate[4:6]
             day         = publishdate[6:8]
@@ -631,9 +648,9 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
     is_logged_in = LoggedIn()
     if query:
         if episodeReq:
-            videosURL = GetVideosURL(episodes = True, start = offset, rows = ITEMS_PER_PAGE, text = String.Quote(query))
+            videosURL = GetVideosURL(episodes = True, start = offset, rows = ITEMS_PER_PAGE, text = query)
         else:
-            videosURL = GetVideosURL(episodes = False, start = offset, rows = ITEMS_PER_PAGE, text = String.Quote(query))
+            videosURL = GetVideosURL(episodes = False, start = offset, rows = ITEMS_PER_PAGE, text = query)
     elif url:
         videosURL = url
     elif episodeReq:
@@ -714,7 +731,7 @@ def TV4Videos(showName, showId, art, episodeReq, offset = 0, query = None, url =
                     title = unicode(video['name']),
                     summary = unicode(description + " " + availabilty),
                     thumb = video['originalimage'],
-                    art = art,
+                    art = art
                 )
             )
     
@@ -860,7 +877,7 @@ def ReturnSearchHits(url, query, result, directoryTitle, episodeReq, createDirec
                         query = query,
                         result = None,
                         directoryTitle = directoryTitle,
-                        episodeReq = True
+                        episodeReq = episodeReq
                     ),
                 title = directoryTitle
             )
