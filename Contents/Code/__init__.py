@@ -109,7 +109,7 @@ def GetProgramsURL(name = '', category = ''):
     
 ###################################################################################################
 def GetVideosURL(id = '', episodes = True, start = 0, rows = 0, text = ''):
-    url = API_BASE_URL + '/video/tv4play/programs/search.json?livepublished=false&sorttype=date&order=asc&start=%s&rows=%s&categoryids=%s&text=%s' % (start, rows, id, text)
+    url = API_BASE_URL + '/video/tv4play/programs/search.json?livepublished=false&sorttype=date&order=desc&start=%s&rows=%s&categoryids=%s&text=%s' % (start, rows, id, text)
     if episodes:
         url = url + '&video_types=programs'
     else:
