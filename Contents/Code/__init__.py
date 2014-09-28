@@ -12,13 +12,9 @@ RE_VIDEO_ID = '(?<=video_id=)[0-9]+'
 
 HTTP_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/536.26.17 (KHTML, like Gecko) Version/6.0.2 Safari/536.26.17"
 
-API_BASE_URL   = 'http://webapi.tv4play.se/play/'
-CATEGORIES_URL = API_BASE_URL + 'categories'
-CHANNELS_URL   = API_BASE_URL + 'video_assets?platform=web&is_channel=true'
-MOVIES_URL     = API_BASE_URL + 'movie_assets?platform=web&start=%s&rows=%s'
-
-API_VIDEO_BASE_URL = 'http://premium.tv4play.se/api/web/asset/'
-API_VIDEO_URL      = API_VIDEO_BASE_URL + '%s/play'
+API_BASE_URL   = 'http://webapi.tv4play.se'
+CATEGORIES_URL = API_BASE_URL + '/play/categories'
+MOVIES_URL     = API_BASE_URL + '/play/movie_assets?platform=web&start=%s&rows=%s'
 
 TEMPLATE_VIDEO_URL = 'http://www.tv4play.se/%s/%s?video_id=%s'
 
@@ -30,6 +26,16 @@ PREMIUM_PREVIEW_NOTE = unicode("Notera att du ej kan spela upp de program som en
 NO_PROGRAMS_FOUND_HEADER  = "Inga program funna"
 NO_PROGRAMS_FOUND_MESSAGE = unicode("Kunde inte hitta några program. ") + DISCLAIMER_NOTE
 SERVER_MESSAGE            = unicode("Kunde ej få kontakt med TV4 servern")
+
+DAYS = [
+    unicode("Måndag"),
+    unicode("Tisdag"),
+    unicode("Onsdag"),
+    unicode("Torsdag"),
+    unicode("Fredag"),
+    unicode("Lördag"),
+    unicode("Söndag")
+]
 
 
 ####################################################################################################
@@ -75,37 +81,43 @@ def ValidatePrefs():
     
     return oc
 
-###################################################################################################
-def GetProgramsURL(category = ''):
-    if category is None:
-        category = ''
-
-    url = API_BASE_URL + 'programs?per_page=1000&page=1&category=%s' % category
-    
-    if Prefs['onlyfree'] and not Prefs['premium']:
-        url = url + '&is_premium=false'
-
-    return url
-    
-###################################################################################################
-def GetVideosURL(id, episodes, page = 1):
-    url = API_BASE_URL + 'video_assets?is_live=false&page=%s&platform=web&node_nids=%s&per_page=%s' % (page, id, ITEMS_PER_PAGE)
-
-    if episodes:
-        url = url + '&type=episode'
-    else:
-        url = url + '&type=clip'
-        
-    if Prefs['onlyfree'] and not Prefs['premium']:
-        url = url + '&is_premium=false'
-        
-    return url
-
 ####################################################################################################
 @handler(PREFIX, TITLE)
 def MainMenu():
     oc = ObjectContainer(no_cache = True)
 
+    title = 'Mest sedda programmen'
+    oc.add(
+        DirectoryObject(
+            key = Callback(TV4MostWatched, title = title),
+            title = title
+        )
+    )
+    
+    title = 'Senaste veckans TV'
+    oc.add(
+        DirectoryObject(
+            key = Callback(TV4Catchup, title = title),
+            title = title
+        )
+    )
+
+    title = unicode('Livesändningar')
+    oc.add(
+        DirectoryObject(
+            key = Callback(TV4Live, title = title),
+            title = title
+        )
+    )
+
+    title = 'Kategorier'
+    oc.add(
+        DirectoryObject(
+            key = Callback(TV4Categories, title = title),
+            title = title
+        )
+    )
+        
     title = 'Alla program'
     oc.add(
         DirectoryObject(
@@ -114,10 +126,14 @@ def MainMenu():
         )
     )
 
-    oc_categories = TV4Categories()
-    
-    for object in oc_categories.objects:
-        oc.add(object)
+    title = unicode('Sök')
+    oc.add(
+        InputDirectoryObject(
+            key = Callback(Search, title = title),
+            title  = title,
+            prompt = title
+        )
+    )
 
     oc.add(
         PrefsObject(
@@ -125,13 +141,105 @@ def MainMenu():
             summary = unicode('Logga in för att använda Premium\r\n\r\nDu kan även välja att visa alla program för att se vad Premium innebär.\r\n\r\n' + DISCLAIMER_NOTE)
         )
     )
+    
+
+    return oc
+
+####################################################################################################
+@route(PREFIX + '/TV4MostWatched')
+def TV4MostWatched(title):
+    oc = ObjectContainer(title2 = unicode(title))
+    
+    videos = JSON.ObjectFromURL(GetMostWatchedURL())
+    oc = Videos(oc, videos)
+    
+    if len(oc) < 1:
+        oc.header  = NO_PROGRAMS_FOUND_HEADER
+        oc.message = NO_PROGRAMS_FOUND_MESSAGE
+        
+    return oc
+    
+####################################################################################################
+@route(PREFIX + '/TV4Catchup')
+def TV4Catchup(title):
+    oc = ObjectContainer(title2 = unicode(title))
+
+    now = datetime.today()  #TODO Can't find a framework function for this?
+    for i in range (0, 7):
+        date = now - Datetime.Delta(days = i)
+        
+        if i == 0:
+            title = unicode('Idag')
+        elif i == 1:
+            title = unicode('Igår')
+        else:
+            title = DAYS[date.weekday()]
+        
+        month = str(date.month)
+        if len(month) <= 1:
+            month = '0' + month
+            
+        day = str(date.day)
+        if len(day) <= 1:
+            day = '0' + day
+            
+        url = GetListingsURL('%s%s%s' % (date.year, month, day))
+        dateString = '%s-%s-%s' % (date.year, month, day)
+        
+        oc.add(
+            DirectoryObject(
+                key = Callback(TV4ListingVideos, url = url, title = dateString),
+                title = title
+            )
+        )
+    
+    return oc 
+
+####################################################################################################
+@route(PREFIX + '/TV4ListingVideos')
+def TV4ListingVideos(url, title):
+    oc = ObjectContainer(title2 = unicode(title))
+    
+    videos = JSON.ObjectFromURL(url)
+
+    if not videos['channels']:
+        oc.header  = NO_PROGRAMS_FOUND_HEADER
+        oc.message = SERVER_MESSAGE
+        
+        return oc
+    
+    vman_ids = ''
+    for video in videos['channels']['TV4']['entries']:
+        if 'vman_id' in video:
+            vman_ids = vman_ids + str(video['vman_id']) + '%2C'
+            
+    videos = JSON.ObjectFromURL(GetVideosURL(vman_ids))
+    oc = Videos(oc, videos)
+        
+    if len(oc) < 1:
+        oc.header  = NO_PROGRAMS_FOUND_HEADER
+        oc.message = NO_PROGRAMS_FOUND_MESSAGE
+
+    return oc
+
+####################################################################################################
+@route(PREFIX + '/TV4Live')
+def TV4Live(title):
+    oc = ObjectContainer(title2 = unicode(title))
+    
+    videos = JSON.ObjectFromURL(GetLiveURL(), cacheTime = 0)
+    oc = Videos(oc, videos)
+    
+    if len(oc) < 1:
+        oc.header  = NO_PROGRAMS_FOUND_HEADER
+        oc.message = unicode('Inga livesändningar tillgängliga för tillfället')
 
     return oc
 
 ####################################################################################################
 @route(PREFIX + '/TV4Categories')
-def TV4Categories():
-    oc = ObjectContainer()
+def TV4Categories(title):
+    oc = ObjectContainer(title2 = unicode(title))
 
     categories = JSON.ObjectFromURL(CATEGORIES_URL)
 
@@ -144,91 +252,65 @@ def TV4Categories():
         )
 
     if Prefs['premium'] or not Prefs['onlyfree']:
+        title = 'Filmer'
         oc.add(
             DirectoryObject(
-                key = Callback(TV4Movies),
-                title = 'Filmer'
+                key = Callback(TV4Movies, title = title),
+                title = title
             )
         )
 
     oc.objects.sort(key=lambda obj: obj.title)
+    
     return oc
 
 ####################################################################################################
-@route(PREFIX + '/TV4Shows', offset = int)
-def TV4Shows(title, categoryId = '', offset = 0):
+@route(PREFIX + '/TV4Shows', page = int)
+def TV4Shows(title, categoryId = '', query = '', page = 1):
     oc = ObjectContainer(title2 = unicode(title))
     
-    programs = JSON.ObjectFromURL(GetProgramsURL(categoryId))
-
-    for program in programs['results']:
-        oc.add(
-            DirectoryObject(
-                key =
-                    Callback(
-                        TV4ShowChoice,
-                        showName = program["name"],
-                        showId = unicode(program["nid"]),
-                        art = program["logo"] if 'logo' in program else None,
-                        thumb = program["program_image"],
-                        summary = program["description"]
-                    ),
-                title = unicode(program["name"]),
-                summary = unicode(program["description"]),
-                thumb = program["program_image"],
-                art = program["logo"] if 'logo' in program else None
-            )
-        )
+    programs = JSON.ObjectFromURL(GetProgramsURL(page, categoryId, query))
+    oc = Programs(oc, programs)
 
     if len(oc) < 1:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
         oc.message = SERVER_MESSAGE
         
         return oc
-    
-    totalNoShows = len(oc)
-    
-    try:
-        oc.objects = oc.objects[offset:offset + ITEMS_PER_PAGE]
-        
-        if offset + ITEMS_PER_PAGE < totalNoShows:
-            nextPage = (offset / ITEMS_PER_PAGE) + 2
-            lastPage = (totalNoShows / ITEMS_PER_PAGE) + 1
-            oc.add(
-                NextPageObject(
-                    key =
-                        Callback(
-                            TV4Shows,
-                            title = title,
-                            categoryId = categoryId,
-                            offset = offset + ITEMS_PER_PAGE
-                        ),
-                    title = "Fler ...",
-                    summary = "Vidare till sida " + str(nextPage) + " av " + str(lastPage)
-                )
+
+    elif len(oc) >= ITEMS_PER_PAGE:
+        oc.add(
+            NextPageObject(
+                key =
+                    Callback(
+                        TV4Shows,
+                        title = title,
+                        categoryId = categoryId,
+                        page = page + 1
+                    ),
+                title = "Fler ..."
             )
-    except:
-        oc.objects = oc.objects[offset:]
+        )
         
     return oc
     
 ####################################################################################################
 @route(PREFIX + '/TV4ShowChoice')
-def TV4ShowChoice(showName, showId, art, thumb, summary):
-    oc = ObjectContainer(title2 = unicode(showName))
-
+def TV4ShowChoice(title, showId, art, thumb, summary):
+    title = unicode(title)
+    oc = ObjectContainer(title2 = title)
     showId = String.Quote(showId)
     
-    episodes = JSON.ObjectFromURL(GetVideosURL(id = showId, episodes = True))
-    clips    = JSON.ObjectFromURL(GetVideosURL(id = showId, episodes = False))
+    episodes = JSON.ObjectFromURL(GetShowVideosURL(episodes = True, id = showId))
+    clips    = JSON.ObjectFromURL(GetShowVideosURL(episodes = False, id = showId))
 
     if episodes['total_hits'] > 0 and clips['total_hits'] > 0:
         oc.add(
             DirectoryObject(
                 key =
                     Callback(
-                        TV4Videos, 
-                        showName = showName, 
+                        TV4ShowVideos, 
+                        title = title, 
                         showId = showId, 
                         art = art,
                         episodeReq = False
@@ -240,8 +322,8 @@ def TV4ShowChoice(showName, showId, art, thumb, summary):
             )
         )
         
-        episode_oc = TV4Videos(
-            showName = showName,
+        episode_oc = TV4ShowVideos(
+            title = title,
             showId = showId,
             art = art,
             episodeReq = True
@@ -252,10 +334,10 @@ def TV4ShowChoice(showName, showId, art, thumb, summary):
 
     elif episodes['total_hits'] > 0 or clips['total_hits'] > 0:
         if clips['total_hits'] > 0:
-            showName = showName + " - Klipp"
+            title = title + " - Klipp"
         
-        return TV4Videos(
-                showName = showName,
+        return TV4ShowVideos(
+                title = title,
                 showId = showId,
                 art = art,
                 episodeReq = episodes['total_hits'] > 0
@@ -268,44 +350,13 @@ def TV4ShowChoice(showName, showId, art, thumb, summary):
     return oc
 
 ####################################################################################################
-@route(PREFIX + '/TV4Videos', episodeReq = bool, page = int)
-def TV4Videos(showName, showId, art, episodeReq, page = 1):
-    showName = unicode(showName)
-
-    oc = ObjectContainer(title2 = showName)
+@route(PREFIX + '/TV4ShowVideos', episodeReq = bool, page = int)
+def TV4ShowVideos(title, showId, art, episodeReq, query = '', page = 1):
+    oc = ObjectContainer(title2 = unicode(title))
     
-    videos = JSON.ObjectFromURL(GetVideosURL(id = showId, episodes = episodeReq, page = page))
+    videos = JSON.ObjectFromURL(GetShowVideosURL(episodes = episodeReq, id = showId, query = query, page = page))
+    oc = Videos(oc, videos)
     
-    for video in videos['results']:
-        if 'is_drm_protected' in video:
-            if video['is_drm_protected']:
-                continue
-                
-        if Prefs['onlyfree'] and not Prefs['premium'] and video['availability']['availability_group_free'] == '0':
-            continue
-                
-        url = TEMPLATE_VIDEO_URL % ('program', showId, str(video['id']))
-        title = unicode(video['title'])
-        summary = unicode(video['description'])
-        thumb = video['image']
-        art = video['program']['logo']
-        duration = int(video['duration']) * 1000
-        originally_available_at = Datetime.ParseDate(video['broadcast_date_time'].split('T')[0]).date()
-        show = showName
-        
-        oc.add(
-            EpisodeObject(
-                url = url,
-                title = title,
-                summary = summary,
-                thumb = thumb,
-                art = art,
-                duration = duration,
-                originally_available_at = originally_available_at,
-                show = show
-            )
-        )
-
     if len(oc) < 1:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
         
@@ -315,15 +366,19 @@ def TV4Videos(showName, showId, art, episodeReq, page = 1):
             oc.message = unicode('Inga fler program funna')
         
     elif len(oc) >= ITEMS_PER_PAGE:
+        if query:
+            query = String.Quote(query)
+        
         oc.add(
             NextPageObject(
                 key =
                     Callback(
-                        TV4Videos,
-                        showName = showName,
+                        TV4ShowVideos,
+                        title = title,
                         showId = showId,
                         art = art,
                         episodeReq = episodeReq,
+                        query = query,
                         page = page + 1
                     ),
                 title = "Fler ..."
@@ -331,4 +386,289 @@ def TV4Videos(showName, showId, art, episodeReq, page = 1):
         )
 
     return oc
+
+####################################################################################################
+@route(PREFIX + '/TV4PremiumRequired')
+def TV4PremiumRequired():
+    oc         = ObjectContainer()
+    oc.header  = unicode("Premium krävs")
+    oc.message = unicode("För att spela upp detta program krävs ett Premium abonnemang.\r\nwww.tv4play.se/premium")
+    
+    return oc
+
+####################################################################################################
+@route(PREFIX + '/TV4Movies', offset = int)
+def TV4Movies(title, offset = 0):
+    oc = ObjectContainer(title2 = unicode(title))
+    
+    movies = JSON.ObjectFromURL(MOVIES_URL % (offset, ITEMS_PER_PAGE))
+    for movie in movies['results']:
+        if 'is_drm_protected' in movie:
+            if movie['is_drm_protected']:
+                continue
+        
+        try:
+            genres = [movie['genre']]
+        except:
+            genres = None
+            
+        try:
+            duration = int(movie['length']) * 60 * 1000
+        except:
+            duration = None
+            
+        try:
+            year = int(movie['production_year'])
+        except:
+            year = None
+            
+        try:
+            art = movie['image']
+        except:
+            art = None
+            
+        try:
+            thumb = movie['poster_image']
+            if not thumb.startswith('http'):
+                thumb = API_BASE_URL + '/play' + thumb
+        except:
+            thumb = None
+            
+        summary = movie['synopsis']
+        if not summary:
+            summary = movie['description_short']
+        
+        if not Prefs['premium']:
+            oc.add(
+                DirectoryObject(
+                    key = Callback(TV4PremiumRequired),
+                    title = movie['title'],
+                    summary = summary,
+                    duration = duration,
+                    thumb = thumb,
+                    art = art
+                )
+            )
+        else:
+            oc.add(
+                MovieObject(
+                    url = TEMPLATE_VIDEO_URL % ('film', movie['id'], movie['id']),
+                    title = movie['title'],
+                    summary = summary,
+                    duration = duration,
+                    original_title = movie['original_title'],
+                    year = year,
+                    thumb = thumb,
+                    art = art
+                )
+            )
+
+        
+    if len(oc) >= ITEMS_PER_PAGE and offset + ITEMS_PER_PAGE < movies['total_hits']:
+        nextPage = (offset / ITEMS_PER_PAGE) + 2
+        lastPage = (movies['total_hits'] / ITEMS_PER_PAGE) + 1
+        oc.add(
+            NextPageObject(
+                key =
+                    Callback(
+                        TV4Movies,
+                        offset = offset + ITEMS_PER_PAGE
+                    ),
+                title = "Fler ...",
+                summary = "Vidare till sida " + str(nextPage) + " av " + str(lastPage),
+                art = art
+            )
+        )
+
+    if len(oc) < 1:
+        oc.header  = NO_PROGRAMS_FOUND_HEADER
+        oc.message = NO_PROGRAMS_FOUND_MESSAGE
+
+    return oc
+
+####################################################################################################
+@route(PREFIX + '/Search')
+def Search(query, title):
+    oc = ObjectContainer(title2 = unicode(title))
+    
+    programs_oc = TV4Shows(title = unicode(title), query = String.Quote(query))
+    
+    for object in programs_oc.objects:
+        oc.add(object)
+    
+    for episodeReq in [True, False]:
+        videos_oc = TV4ShowVideos(
+            title = unicode(title),
+            showId = '',
+            art = None,
+            episodeReq = episodeReq,
+            query = String.Quote(query)
+        )
+        
+        if len(videos_oc) > 0:
+            if episodeReq:
+                title = 'Hela avsnitt'
+            else:
+                title = 'Klipp'
+                
+            oc.add(
+                DirectoryObject(
+                    key = 
+                        Callback(
+                            TV4ShowVideos,
+                            title = title,
+                            showId = '',
+                            art = None,
+                            episodeReq = episodeReq,
+                            query = String.Quote(query)
+                        ),
+                    title = title
+                )
+            )
+        
+    return oc
+
+####################################################################################################
+def Videos(oc, videos):
+    for video in videos['results']:
+        if 'is_drm_protected' in video:
+            if video['is_drm_protected']:
+                continue
+        
+        video_is_premium_only = video['availability']['availability_group_free'] == '0' or not video['availability']['availability_group_free']
+        
+        if Prefs['onlyfree'] and not Prefs['premium'] and video_is_premium_only:
+            continue
+                
+        url = TEMPLATE_VIDEO_URL % ('program', String.Quote(video['program_nid']), str(video['id']))
+        title = unicode(video['title'])
+        summary = unicode(video['description'])
+        thumb = video['image']
+        art = video['program']['logo']
+        duration = int(video['duration']) * 1000
+        originally_available_at = Datetime.ParseDate(video['broadcast_date_time'].split('T')[0]).date()
+        show = unicode(video['program']['name'])
+        
+        if not Prefs['onlyfree'] and not Prefs['premium'] and video_is_premium_only: 
+            oc.add(
+                DirectoryObject(
+                    key = Callback(TV4PremiumRequired),
+                    title = title,
+                    summary = summary,
+                    thumb = thumb,
+                    art = art,
+                    duration = duration
+                )
+            )
+        else:
+            oc.add(
+                EpisodeObject(
+                    url = url,
+                    title = title,
+                    summary = summary,
+                    thumb = thumb,
+                    art = art,
+                    duration = duration,
+                    originally_available_at = originally_available_at,
+                    show = show
+                )
+            )
+
+    return oc
+
+###################################################################################################
+def Programs(oc, programs):
+    for program in programs['results']:
+        oc.add(
+            DirectoryObject(
+                key =
+                    Callback(
+                        TV4ShowChoice,
+                        title = program["name"],
+                        showId = unicode(program["nid"]),
+                        art = program["logo"] if 'logo' in program else None,
+                        thumb = program["program_image"],
+                        summary = program["description"]
+                    ),
+                title = unicode(program["name"]),
+                summary = unicode(program["description"]),
+                thumb = program["program_image"],
+                art = program["logo"] if 'logo' in program else None
+            )
+        )
+    
+    return oc
+
+###################################################################################################
+def GetProgramsURL(page, category = '', query = ''):
+    if category is None:
+        category = ''
+
+    url = API_BASE_URL + '/play/programs?per_page=%s&page=%s&category=%s' % (ITEMS_PER_PAGE, page, String.Quote(category))
+    
+    if query:
+        url = url + '&q=%s' % String.Quote(query)
+    
+    if Prefs['onlyfree'] and not Prefs['premium']:
+        url = url + '&is_premium=false'
+
+    return url
+    
+###################################################################################################
+def GetShowVideosURL(episodes, id = '', query = '', page = 1):
+    if id is None:
+        id = ''
+    
+    url = API_BASE_URL + '/play/video_assets?is_live=false&page=%s&platform=web&node_nids=%s&per_page=%s' % (page, id, ITEMS_PER_PAGE)
+    
+    if query:
+        url = url + '&q=%s' % String.Quote(query)
+
+    if episodes:
+        url = url + '&type=episode'
+    else:
+        url = url + '&type=clip'
+        
+    if Prefs['onlyfree'] and not Prefs['premium']:
+        url = url + '&is_premium=false'
+        
+    return url
+
+###################################################################################################
+def GetMostWatchedURL(episodes = True):
+    url = API_BASE_URL + '/play/video_assets/most_viewed?page=1&is_live=false&sort=broadcast_date_time&platform=web&per_page=%s&sort_order=desc' % ITEMS_PER_PAGE
+ 
+    if episodes:
+        url = url + '&type=episode'
+    else:
+        url = url + '&type=clip'
+    
+    if Prefs['onlyfree'] and not Prefs['premium']:
+        url = url + '&is_premium=false'
+        
+    return url
+    
+###################################################################################################
+def GetListingsURL(date = ""):
+    url = API_BASE_URL + '/tvdata/listings/TV4?date=%s' % date
+        
+    if Prefs['onlyfree'] and not Prefs['premium']:
+        url = url + '&premium=false'
+        
+    return url
+    
+###################################################################################################
+def GetVideosURL(vman_ids):
+    url = API_BASE_URL + '/play/video_assets?id=%s' % vman_ids
+        
+    if Prefs['onlyfree'] and not Prefs['premium']:
+        url = url + '&is_premium=false'
+        
+    return url
+
+###################################################################################################
+def GetLiveURL():
+    url = API_BASE_URL + '/play/video_assets?broadcast_to=NOW&broadcast_from=19991231&is_live=true&platform=web&per_page=%s' % ITEMS_PER_PAGE
+    
+    return url
 
