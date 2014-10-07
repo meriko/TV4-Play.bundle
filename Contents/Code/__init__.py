@@ -281,7 +281,7 @@ def TV4Categories(title):
     return oc
 
 ####################################################################################################
-@route(PREFIX + '/TV4Shows', page = int)
+@route(PREFIX + '/TV4Shows', query = list, page = int)
 def TV4Shows(title, categoryId = '', query = '', page = 1):
     oc = ObjectContainer(title2 = unicode(title))
     
@@ -302,6 +302,7 @@ def TV4Shows(title, categoryId = '', query = '', page = 1):
                         TV4Shows,
                         title = title,
                         categoryId = categoryId,
+                        query = query,
                         page = page + 1
                     ),
                 title = "Fler ..."
@@ -366,7 +367,7 @@ def TV4ShowChoice(title, showId, art, thumb, summary):
     return oc
 
 ####################################################################################################
-@route(PREFIX + '/TV4ShowVideos', episodeReq = bool, page = int)
+@route(PREFIX + '/TV4ShowVideos', episodeReq = bool, query = list, page = int)
 def TV4ShowVideos(title, showId, art, episodeReq, query = '', page = 1):
     oc = ObjectContainer(title2 = unicode(title))
     
@@ -382,9 +383,6 @@ def TV4ShowVideos(title, showId, art, episodeReq, query = '', page = 1):
             oc.message = unicode('Inga fler program funna')
         
     elif len(oc) >= ITEMS_PER_PAGE:
-        if query:
-            query = String.Quote(query)
-        
         oc.add(
             NextPageObject(
                 key =
@@ -539,11 +537,9 @@ def TV4Movies(title, offset = 0):
 @route(PREFIX + '/Search')
 def Search(query, title):
     oc = ObjectContainer(title2 = unicode(title))
-    
-    programs_oc = TV4Shows(title = unicode(title), query = String.Quote(query))
-    
-    for object in programs_oc.objects:
-        oc.add(object)
+
+    unquotedQuery = query
+    query = String.Quote(query)
     
     for episodeReq in [False, True]:
         videos_oc = TV4ShowVideos(
@@ -551,7 +547,7 @@ def Search(query, title):
             showId = '',
             art = None,
             episodeReq = episodeReq,
-            query = String.Quote(query)
+            query = query
         )
         
         if len(videos_oc) > 0:
@@ -559,7 +555,10 @@ def Search(query, title):
                 title = 'Hela avsnitt'
             else:
                 title = 'Klipp'
-                
+
+            hits = JSON.ObjectFromURL(GetShowVideosURL(episodes = episodeReq, query = query))
+            title = title + "(%i)" % hits['total_hits']
+
             oc.add(
                 DirectoryObject(
                     key = 
@@ -569,11 +568,20 @@ def Search(query, title):
                             showId = '',
                             art = None,
                             episodeReq = episodeReq,
-                            query = String.Quote(query)
+                            query = query
                         ),
                     title = title
                 )
             )
+
+    programs_oc = TV4Shows(title = unicode(title), query = query)
+
+    for object in programs_oc.objects:
+        oc.add(object)
+
+    if len(oc) < 1:
+        oc.header  = unicode("Sökresultat"),
+        oc.message = unicode("Kunde ej hitta något för '%s'" % unquotedQuery)
         
     return oc
 
@@ -667,7 +675,7 @@ def GetProgramsURL(page, category = '', query = ''):
     url = API_BASE_URL + '/play/programs?per_page=%s&page=%s&category=%s' % (ITEMS_PER_PAGE, page, String.Quote(category))
     
     if query:
-        url = url + '&q=%s' % String.Quote(query)
+        url = url + '&q=%s' % query
     
     if Prefs['onlyfree'] and not Prefs['premium']:
         url = url + '&is_premium=false'
