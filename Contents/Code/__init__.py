@@ -545,7 +545,7 @@ def Search(query, title):
     for object in programs_oc.objects:
         oc.add(object)
     
-    for episodeReq in [True, False]:
+    for episodeReq in [False, True]:
         videos_oc = TV4ShowVideos(
             title = unicode(title),
             showId = '',
