@@ -433,9 +433,15 @@ def TV4Movies(title, offset = 0):
                     continue
             
             try:
-                genres = [movie['genre']]
+                genres = [movie['genre']] if movie['genre'] else []
             except:
-                genres = None
+                genres = []
+
+            try:
+                for sub in movie['sub_genres']:
+                    genres.append(sub)
+            except:
+                pass
 
             try:
                 duration = int(movie['length']) * 60 * 1000
@@ -446,6 +452,11 @@ def TV4Movies(title, offset = 0):
                 year = int(movie['production_year'])
             except:
                 year = None
+
+            try:
+                directors = [movie['director']] if movie['director'] else []
+            except:
+                directors = []
 
             try:
                 art = movie['image']
@@ -463,6 +474,13 @@ def TV4Movies(title, offset = 0):
             if not summary:
                 summary = movie['description_short']
 
+            source_title = movie['content_source']
+
+            countries = []
+            if 'production_countries' in movie and movie['production_countries']:
+                for country in movie['production_countries']:
+                    countries.append(country)
+
             if not Prefs['premium']:
                 oc.add(
                     DirectoryObject(
@@ -479,12 +497,16 @@ def TV4Movies(title, offset = 0):
                     MovieObject(
                         url = TEMPLATE_VIDEO_URL % ('film', movie['id'], movie['id']),
                         title = movie['title'],
+                        genres = genres,
                         summary = summary,
                         duration = duration,
                         original_title = movie['original_title'],
                         year = year,
+                        directors = directors,
                         thumb = thumb,
-                        art = art
+                        art = art,
+                        source_title = source_title,
+                        countries = countries
                     )
                 )
 
