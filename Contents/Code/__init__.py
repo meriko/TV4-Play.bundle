@@ -35,6 +35,7 @@ DAYS = [
     unicode("Söndag")
 ]
 
+RE_TIME = Regex('([0-9]+:[0-9]+)')
 
 ####################################################################################################
 def Start():
@@ -238,7 +239,11 @@ def TV4ListingVideos(url, title):
 def TV4Live(title):
     oc = ObjectContainer(title2 = unicode(title))
     
-    videos = JSON.ObjectFromURL(GetLiveURL(), cacheTime = 0)
+    tomorrow = Datetime.Now() + Datetime.Delta(days = 2) # Must set 2 due to a bug in TV4 server?
+    end_date = "%04i%02i%02i" % (tomorrow.year, tomorrow.month, tomorrow.day)
+
+    # Fetch all broadcasts up till tomorrow
+    videos = JSON.ObjectFromURL(GetLiveURL(end_date), cacheTime = 0)
     oc = Videos(oc, videos)
     
     if len(oc) < 1:
@@ -559,12 +564,23 @@ def Videos(oc, videos):
         duration = int(video['duration']) * 1000
         originally_available_at = Datetime.ParseDate(video['broadcast_date_time'].split('T')[0]).date()
         show = unicode(video['program']['name'])
+
+        if video['is_live']:
+            if originally_available_at > Datetime.Now().date():
+                tomorrow = (Datetime.Now() + Datetime.Delta(days = 1)).date()
+
+                if originally_available_at == tomorrow:
+                    title = 'Imorgon: ' + title
+                else:
+                    title = '%s: ' % originally_available_at + title
+            else:
+                title = '%s ' % (RE_TIME.search(video['broadcast_date_time']).groups()[0]) + title
         
         if not Prefs['onlyfree'] and not Prefs['premium'] and video_is_premium_only: 
             oc.add(
                 DirectoryObject(
                     key = Callback(TV4PremiumRequired),
-                    title = title,
+                    title = title + " (Premium)",
                     summary = summary,
                     thumb = thumb,
                     art = art,
@@ -678,8 +694,11 @@ def GetVideosURL(vman_ids):
     return url
 
 ###################################################################################################
-def GetLiveURL():
-    url = API_BASE_URL + '/play/video_assets?broadcast_to=NOW&broadcast_from=19991231&is_live=true&platform=web&per_page=%s' % ITEMS_PER_PAGE
+def GetLiveURL(end_date = 'NOW'):
+    # Note: The hardcoded start date, 19991231 -> We don't have to worry about day shift(s).
+    #       Also, there exists a broadcast started in 2011 which broadcasts the latest news
+    #       via rolling texts
+    url = API_BASE_URL + '/play/video_assets?broadcast_to=%s&broadcast_from=19991231&is_live=true&platform=web&per_page=%s' % (end_date, ITEMS_PER_PAGE)
     
     return url
 
