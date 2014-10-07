@@ -1,5 +1,3 @@
-from datetime import datetime
-
 LoggedIn = SharedCodeService.tv4play.LoggedIn
 Login    = SharedCodeService.tv4play.Login
 
@@ -177,7 +175,7 @@ def TV4MostWatched(title, episodes = True):
 def TV4Catchup(title):
     oc = ObjectContainer(title2 = unicode(title))
 
-    now = datetime.today()  #TODO Can't find a framework function for this?
+    now = Datetime.Now()
     for i in range (0, 7):
         date = now - Datetime.Delta(days = i)
         
