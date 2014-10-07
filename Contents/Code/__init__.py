@@ -145,12 +145,25 @@ def MainMenu():
 
     return oc
 
-####################################################################################################
-@route(PREFIX + '/TV4MostWatched')
-def TV4MostWatched(title):
+###################################################################################################
+@route(PREFIX + '/TV4MostWatched', episodes = bool)
+def TV4MostWatched(title, episodes = True):
     oc = ObjectContainer(title2 = unicode(title))
+
+    if episodes:
+        oc.add(
+            DirectoryObject(
+                key =
+                    Callback(
+                        TV4MostWatched,
+                        title      = "Klipp",
+                        episodes   = False,
+                    ),
+                title = "Klipp"
+            )
+        )
     
-    videos = JSON.ObjectFromURL(GetMostWatchedURL())
+    videos = JSON.ObjectFromURL(GetMostWatchedURL(episodes = episodes))
     oc = Videos(oc, videos)
     
     if len(oc) < 1:
