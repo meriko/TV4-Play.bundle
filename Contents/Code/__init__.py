@@ -417,84 +417,95 @@ def TV4PremiumRequired():
 def TV4Movies(title, offset = 0):
     oc = ObjectContainer(title2 = unicode(title))
     
-    movies = JSON.ObjectFromURL(MOVIES_URL % (offset, ITEMS_PER_PAGE))
-    for movie in movies['results']:
-        if 'is_drm_protected' in movie:
-            if movie['is_drm_protected']:
-                continue
-        
-        try:
-            genres = [movie['genre']]
-        except:
-            genres = None
-            
-        try:
-            duration = int(movie['length']) * 60 * 1000
-        except:
-            duration = None
-            
-        try:
-            year = int(movie['production_year'])
-        except:
-            year = None
-            
-        try:
-            art = movie['image']
-        except:
-            art = None
-            
-        try:
-            thumb = movie['poster_image']
-            if not thumb.startswith('http'):
-                thumb = API_BASE_URL + '/play' + thumb
-        except:
-            thumb = None
-            
-        summary = movie['synopsis']
-        if not summary:
-            summary = movie['description_short']
-        
-        if not Prefs['premium']:
-            oc.add(
-                DirectoryObject(
-                    key = Callback(TV4PremiumRequired),
-                    title = movie['title'],
-                    summary = summary,
-                    duration = duration,
-                    thumb = thumb,
-                    art = art
-                )
-            )
-        else:
-            oc.add(
-                MovieObject(
-                    url = TEMPLATE_VIDEO_URL % ('film', movie['id'], movie['id']),
-                    title = movie['title'],
-                    summary = summary,
-                    duration = duration,
-                    original_title = movie['original_title'],
-                    year = year,
-                    thumb = thumb,
-                    art = art
-                )
-            )
+    totalNoMovies = JSON.ObjectFromURL(MOVIES_URL % (0, 0))['total_hits']
+    moviesLeft = totalNoMovies - offset
+    maxPages = moviesLeft // ITEMS_PER_PAGE
 
+    if moviesLeft % ITEMS_PER_PAGE != 0:
+        maxPages = maxPages + 1
+
+    for page in range(maxPages):
+        movies = JSON.ObjectFromURL(MOVIES_URL % (offset, ITEMS_PER_PAGE))
         
-    if len(oc) >= ITEMS_PER_PAGE and offset + ITEMS_PER_PAGE < movies['total_hits']:
-        nextPage = (offset / ITEMS_PER_PAGE) + 2
-        lastPage = (movies['total_hits'] / ITEMS_PER_PAGE) + 1
-        oc.add(
-            NextPageObject(
-                key =
-                    Callback(
-                        TV4Movies,
-                        offset = offset + ITEMS_PER_PAGE
-                    ),
-                title = "Fler ...",
-                summary = "Vidare till sida " + str(nextPage) + " av " + str(lastPage),
-                art = art
+        for movie in movies['results']:
+            if 'is_drm_protected' in movie:
+                if movie['is_drm_protected']:
+                    continue
+            
+            try:
+                genres = [movie['genre']]
+            except:
+                genres = None
+
+            try:
+                duration = int(movie['length']) * 60 * 1000
+            except:
+                duration = None
+
+            try:
+                year = int(movie['production_year'])
+            except:
+                year = None
+
+            try:
+                art = movie['image']
+            except:
+                art = None
+
+            try:
+                thumb = movie['poster_image']
+                if not thumb.startswith('http'):
+                    thumb = API_BASE_URL + '/play' + thumb
+            except:
+                thumb = None
+
+            summary = movie['synopsis']
+            if not summary:
+                summary = movie['description_short']
+
+            if not Prefs['premium']:
+                oc.add(
+                    DirectoryObject(
+                        key = Callback(TV4PremiumRequired),
+                        title = movie['title'],
+                        summary = summary,
+                        duration = duration,
+                        thumb = thumb,
+                        art = art
+                    )
+                )
+            else:
+                oc.add(
+                    MovieObject(
+                        url = TEMPLATE_VIDEO_URL % ('film', movie['id'], movie['id']),
+                        title = movie['title'],
+                        summary = summary,
+                        duration = duration,
+                        original_title = movie['original_title'],
+                        year = year,
+                        thumb = thumb,
+                        art = art
+                    )
+                )
+
+            if len(oc) >= ITEMS_PER_PAGE:
+                break
+
+        offset = offset + ITEMS_PER_PAGE
+
+        if len(oc) >= ITEMS_PER_PAGE:
+            oc.add(
+                NextPageObject(
+                    key =
+                        Callback(
+                            TV4Movies,
+                            offset = offset
+                        ),
+                    title = "Fler ...",
+                    art = art
+                )
             )
-        )
+            break
 
     if len(oc) < 1:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
