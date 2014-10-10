@@ -1,5 +1,3 @@
-from datetime import datetime
-
 LoggedIn = SharedCodeService.tv4play.LoggedIn
 Login    = SharedCodeService.tv4play.Login
 
@@ -37,6 +35,7 @@ DAYS = [
     unicode("Söndag")
 ]
 
+RE_TIME = Regex('([0-9]+:[0-9]+)')
 
 ####################################################################################################
 def Start():
@@ -145,12 +144,25 @@ def MainMenu():
 
     return oc
 
-####################################################################################################
-@route(PREFIX + '/TV4MostWatched')
-def TV4MostWatched(title):
+###################################################################################################
+@route(PREFIX + '/TV4MostWatched', episodes = bool)
+def TV4MostWatched(title, episodes = True):
     oc = ObjectContainer(title2 = unicode(title))
+
+    if episodes:
+        oc.add(
+            DirectoryObject(
+                key =
+                    Callback(
+                        TV4MostWatched,
+                        title      = "Klipp",
+                        episodes   = False,
+                    ),
+                title = "Klipp"
+            )
+        )
     
-    videos = JSON.ObjectFromURL(GetMostWatchedURL())
+    videos = JSON.ObjectFromURL(GetMostWatchedURL(episodes = episodes))
     oc = Videos(oc, videos)
     
     if len(oc) < 1:
@@ -164,7 +176,7 @@ def TV4MostWatched(title):
 def TV4Catchup(title):
     oc = ObjectContainer(title2 = unicode(title))
 
-    now = datetime.today()  #TODO Can't find a framework function for this?
+    now = Datetime.Now()
     for i in range (0, 7):
         date = now - Datetime.Delta(days = i)
         
@@ -227,7 +239,11 @@ def TV4ListingVideos(url, title):
 def TV4Live(title):
     oc = ObjectContainer(title2 = unicode(title))
     
-    videos = JSON.ObjectFromURL(GetLiveURL(), cacheTime = 0)
+    tomorrow = Datetime.Now() + Datetime.Delta(days = 2) # Must set 2 due to a bug in TV4 server?
+    end_date = "%04i%02i%02i" % (tomorrow.year, tomorrow.month, tomorrow.day)
+
+    # Fetch all broadcasts up till tomorrow
+    videos = JSON.ObjectFromURL(GetLiveURL(end_date), cacheTime = 0)
     oc = Videos(oc, videos)
     
     if len(oc) < 1:
@@ -265,7 +281,7 @@ def TV4Categories(title):
     return oc
 
 ####################################################################################################
-@route(PREFIX + '/TV4Shows', page = int)
+@route(PREFIX + '/TV4Shows', query = list, page = int)
 def TV4Shows(title, categoryId = '', query = '', page = 1):
     oc = ObjectContainer(title2 = unicode(title))
     
@@ -286,6 +302,7 @@ def TV4Shows(title, categoryId = '', query = '', page = 1):
                         TV4Shows,
                         title = title,
                         categoryId = categoryId,
+                        query = query,
                         page = page + 1
                     ),
                 title = "Fler ..."
@@ -350,7 +367,7 @@ def TV4ShowChoice(title, showId, art, thumb, summary):
     return oc
 
 ####################################################################################################
-@route(PREFIX + '/TV4ShowVideos', episodeReq = bool, page = int)
+@route(PREFIX + '/TV4ShowVideos', episodeReq = bool, query = list, page = int)
 def TV4ShowVideos(title, showId, art, episodeReq, query = '', page = 1):
     oc = ObjectContainer(title2 = unicode(title))
     
@@ -366,9 +383,6 @@ def TV4ShowVideos(title, showId, art, episodeReq, query = '', page = 1):
             oc.message = unicode('Inga fler program funna')
         
     elif len(oc) >= ITEMS_PER_PAGE:
-        if query:
-            query = String.Quote(query)
-        
         oc.add(
             NextPageObject(
                 key =
@@ -401,84 +415,117 @@ def TV4PremiumRequired():
 def TV4Movies(title, offset = 0):
     oc = ObjectContainer(title2 = unicode(title))
     
-    movies = JSON.ObjectFromURL(MOVIES_URL % (offset, ITEMS_PER_PAGE))
-    for movie in movies['results']:
-        if 'is_drm_protected' in movie:
-            if movie['is_drm_protected']:
-                continue
-        
-        try:
-            genres = [movie['genre']]
-        except:
-            genres = None
-            
-        try:
-            duration = int(movie['length']) * 60 * 1000
-        except:
-            duration = None
-            
-        try:
-            year = int(movie['production_year'])
-        except:
-            year = None
-            
-        try:
-            art = movie['image']
-        except:
-            art = None
-            
-        try:
-            thumb = movie['poster_image']
-            if not thumb.startswith('http'):
-                thumb = API_BASE_URL + '/play' + thumb
-        except:
-            thumb = None
-            
-        summary = movie['synopsis']
-        if not summary:
-            summary = movie['description_short']
-        
-        if not Prefs['premium']:
-            oc.add(
-                DirectoryObject(
-                    key = Callback(TV4PremiumRequired),
-                    title = movie['title'],
-                    summary = summary,
-                    duration = duration,
-                    thumb = thumb,
-                    art = art
-                )
-            )
-        else:
-            oc.add(
-                MovieObject(
-                    url = TEMPLATE_VIDEO_URL % ('film', movie['id'], movie['id']),
-                    title = movie['title'],
-                    summary = summary,
-                    duration = duration,
-                    original_title = movie['original_title'],
-                    year = year,
-                    thumb = thumb,
-                    art = art
-                )
-            )
+    totalNoMovies = JSON.ObjectFromURL(MOVIES_URL % (0, 0))['total_hits']
+    moviesLeft = totalNoMovies - offset
+    maxPages = moviesLeft // ITEMS_PER_PAGE
 
+    if moviesLeft % ITEMS_PER_PAGE != 0:
+        maxPages = maxPages + 1
+
+    for page in range(maxPages):
+        movies = JSON.ObjectFromURL(MOVIES_URL % (offset, ITEMS_PER_PAGE))
         
-    if len(oc) >= ITEMS_PER_PAGE and offset + ITEMS_PER_PAGE < movies['total_hits']:
-        nextPage = (offset / ITEMS_PER_PAGE) + 2
-        lastPage = (movies['total_hits'] / ITEMS_PER_PAGE) + 1
-        oc.add(
-            NextPageObject(
-                key =
-                    Callback(
-                        TV4Movies,
-                        offset = offset + ITEMS_PER_PAGE
-                    ),
-                title = "Fler ...",
-                summary = "Vidare till sida " + str(nextPage) + " av " + str(lastPage),
-                art = art
+        for movie in movies['results']:
+            if 'is_drm_protected' in movie:
+                if movie['is_drm_protected']:
+                    continue
+            
+            try:
+                genres = [movie['genre']] if movie['genre'] else []
+            except:
+                genres = []
+
+            try:
+                for sub in movie['sub_genres']:
+                    genres.append(sub)
+            except:
+                pass
+
+            try:
+                duration = int(movie['length']) * 60 * 1000
+            except:
+                duration = None
+
+            try:
+                year = int(movie['production_year'])
+            except:
+                year = None
+
+            try:
+                directors = [movie['director']] if movie['director'] else []
+            except:
+                directors = []
+
+            try:
+                art = movie['image']
+            except:
+                art = None
+
+            try:
+                thumb = movie['poster_image']
+                if not thumb.startswith('http'):
+                    thumb = API_BASE_URL + '/play' + thumb
+            except:
+                thumb = None
+
+            summary = movie['synopsis']
+            if not summary:
+                summary = movie['description_short']
+
+            source_title = movie['content_source']
+
+            countries = []
+            if 'production_countries' in movie and movie['production_countries']:
+                for country in movie['production_countries']:
+                    countries.append(country)
+
+            if not Prefs['premium']:
+                oc.add(
+                    DirectoryObject(
+                        key = Callback(TV4PremiumRequired),
+                        title = movie['title'],
+                        summary = summary,
+                        duration = duration,
+                        thumb = thumb,
+                        art = art
+                    )
+                )
+            else:
+                oc.add(
+                    MovieObject(
+                        url = TEMPLATE_VIDEO_URL % ('film', movie['id'], movie['id']),
+                        title = movie['title'],
+                        genres = genres,
+                        summary = summary,
+                        duration = duration,
+                        original_title = movie['original_title'],
+                        year = year,
+                        directors = directors,
+                        thumb = thumb,
+                        art = art,
+                        source_title = source_title,
+                        countries = countries
+                    )
+                )
+
+            if len(oc) >= ITEMS_PER_PAGE:
+                break
+
+        offset = offset + ITEMS_PER_PAGE
+
+        if len(oc) >= ITEMS_PER_PAGE:
+            oc.add(
+                NextPageObject(
+                    key =
+                        Callback(
+                            TV4Movies,
+                            offset = offset
+                        ),
+                    title = "Fler ...",
+                    art = art
+                )
             )
-        )
+            break
 
     if len(oc) < 1:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
@@ -490,19 +537,17 @@ def TV4Movies(title, offset = 0):
 @route(PREFIX + '/Search')
 def Search(query, title):
     oc = ObjectContainer(title2 = unicode(title))
+
+    unquotedQuery = query
+    query = String.Quote(query)
     
-    programs_oc = TV4Shows(title = unicode(title), query = String.Quote(query))
-    
-    for object in programs_oc.objects:
-        oc.add(object)
-    
-    for episodeReq in [True, False]:
+    for episodeReq in [False, True]:
         videos_oc = TV4ShowVideos(
             title = unicode(title),
             showId = '',
             art = None,
             episodeReq = episodeReq,
-            query = String.Quote(query)
+            query = query
         )
         
         if len(videos_oc) > 0:
@@ -510,7 +555,10 @@ def Search(query, title):
                 title = 'Hela avsnitt'
             else:
                 title = 'Klipp'
-                
+
+            hits = JSON.ObjectFromURL(GetShowVideosURL(episodes = episodeReq, query = query))
+            title = title + "(%i)" % hits['total_hits']
+
             oc.add(
                 DirectoryObject(
                     key = 
@@ -520,11 +568,20 @@ def Search(query, title):
                             showId = '',
                             art = None,
                             episodeReq = episodeReq,
-                            query = String.Quote(query)
+                            query = query
                         ),
                     title = title
                 )
             )
+
+    programs_oc = TV4Shows(title = unicode(title), query = query)
+
+    for object in programs_oc.objects:
+        oc.add(object)
+
+    if len(oc) < 1:
+        oc.header  = unicode("Sökresultat"),
+        oc.message = unicode("Kunde ej hitta något för '%s'" % unquotedQuery)
         
     return oc
 
@@ -548,12 +605,23 @@ def Videos(oc, videos):
         duration = int(video['duration']) * 1000
         originally_available_at = Datetime.ParseDate(video['broadcast_date_time'].split('T')[0]).date()
         show = unicode(video['program']['name'])
+
+        if video['is_live']:
+            if originally_available_at > Datetime.Now().date():
+                tomorrow = (Datetime.Now() + Datetime.Delta(days = 1)).date()
+
+                if originally_available_at == tomorrow:
+                    title = 'Imorgon: ' + title
+                else:
+                    title = '%s: ' % originally_available_at + title
+            else:
+                title = '%s ' % (RE_TIME.search(video['broadcast_date_time']).groups()[0]) + title
         
         if not Prefs['onlyfree'] and not Prefs['premium'] and video_is_premium_only: 
             oc.add(
                 DirectoryObject(
                     key = Callback(TV4PremiumRequired),
-                    title = title,
+                    title = title + " (Premium)",
                     summary = summary,
                     thumb = thumb,
                     art = art,
@@ -607,7 +675,7 @@ def GetProgramsURL(page, category = '', query = ''):
     url = API_BASE_URL + '/play/programs?per_page=%s&page=%s&category=%s' % (ITEMS_PER_PAGE, page, String.Quote(category))
     
     if query:
-        url = url + '&q=%s' % String.Quote(query)
+        url = url + '&q=%s' % query
     
     if Prefs['onlyfree'] and not Prefs['premium']:
         url = url + '&is_premium=false'
@@ -667,8 +735,11 @@ def GetVideosURL(vman_ids):
     return url
 
 ###################################################################################################
-def GetLiveURL():
-    url = API_BASE_URL + '/play/video_assets?broadcast_to=NOW&broadcast_from=19991231&is_live=true&platform=web&per_page=%s' % ITEMS_PER_PAGE
+def GetLiveURL(end_date = 'NOW'):
+    # Note: The hardcoded start date, 19991231 -> We don't have to worry about day shift(s).
+    #       Also, there exists a broadcast started in 2011 which broadcasts the latest news
+    #       via rolling texts
+    url = API_BASE_URL + '/play/video_assets?broadcast_to=%s&broadcast_from=19991231&is_live=true&platform=web&per_page=%s' % (end_date, ITEMS_PER_PAGE)
     
     return url
 
