@@ -155,8 +155,8 @@ def TV4MostWatched(title, episodes = True):
                 key =
                     Callback(
                         TV4MostWatched,
-                        title      = "Klipp",
-                        episodes   = False,
+                        title      = title + " - Klipp",
+                        episodes   = False
                     ),
                 title = "Klipp"
             )
@@ -178,59 +178,83 @@ def TV4Catchup(title):
 
     now = Datetime.Now()
     for i in range (0, 7):
-        date = now - Datetime.Delta(days = i)
-        
+        startDate = now - Datetime.Delta(days = i)
         if i == 0:
             title = unicode('Idag')
         elif i == 1:
             title = unicode('Igår')
         else:
-            title = DAYS[date.weekday()]
-        
-        month = str(date.month)
-        if len(month) <= 1:
-            month = '0' + month
-            
-        day = str(date.day)
-        if len(day) <= 1:
-            day = '0' + day
-            
-        url = GetListingsURL('%s%s%s' % (date.year, month, day))
-        dateString = '%s-%s-%s' % (date.year, month, day)
-        
+            title = DAYS[startDate.weekday()]
+
+        endDate = dateToString(startDate + Datetime.Delta(days = 1))
+        startDate = dateToString(startDate)
         oc.add(
             DirectoryObject(
-                key = Callback(TV4ListingVideos, url = url, title = dateString),
+                key = Callback(TV4ListingVideos, startDate = startDate, endDate = endDate),
                 title = title
             )
         )
     
     return oc 
 
+def dateToString(date):
+    month = str(date.month)
+    if len(month) <= 1:
+        month = '0' + month
+        
+    day = str(date.day)
+    if len(day) <= 1:
+        day = '0' + day
+            
+    return '%s-%s-%s' % (date.year, month, day)
+
 ####################################################################################################
-@route(PREFIX + '/TV4ListingVideos')
-def TV4ListingVideos(url, title):
+@route(PREFIX + '/TV4ListingVideos', startDate = str, endDate = str, episodeReq = bool, page = int)
+def TV4ListingVideos(startDate, endDate, episodeReq = True, page = 1):
+    title = startDate
+    if not episodeReq:
+        title = title + " - Klipp"
+    url = GetListingsURL(startDate, endDate, episodeReq, page)
+
     oc = ObjectContainer(title2 = unicode(title))
+
+    if episodeReq and page == 1:
+        oc.add(
+            DirectoryObject(
+                key =
+                    Callback(
+                        TV4ListingVideos, 
+                        startDate  = startDate,
+                        endDate    = endDate,
+                        episodeReq = False,
+                        page       = 1
+                    ),
+                title = "Klipp"
+                )
+            )
     
     videos = JSON.ObjectFromURL(url)
 
-    if not videos['channels']:
-        oc.header  = NO_PROGRAMS_FOUND_HEADER
-        oc.message = SERVER_MESSAGE
-        
-        return oc
-    
-    vman_ids = ''
-    for video in videos['channels']['TV4']['entries']:
-        if 'vman_id' in video:
-            vman_ids = vman_ids + str(video['vman_id']) + '%2C'
-            
-    videos = JSON.ObjectFromURL(GetVideosURL(vman_ids))
     oc = Videos(oc, videos)
-        
+
     if len(oc) < 1:
         oc.header  = NO_PROGRAMS_FOUND_HEADER
         oc.message = NO_PROGRAMS_FOUND_MESSAGE
+
+    elif len(oc) >= ITEMS_PER_PAGE:
+        oc.add(
+            NextPageObject(
+                key =
+                    Callback(
+                        TV4ListingVideos, 
+                        startDate  = startDate,
+                        endDate    = endDate,
+                        episodeReq = episodeReq,
+                        page       = page + 1
+                    ),
+                title = "Fler ..."
+            )
+        )
 
     return oc
 
@@ -536,7 +560,7 @@ def TV4Movies(title, offset = 0):
 ####################################################################################################
 @route(PREFIX + '/Search')
 def Search(query, title):
-    oc = ObjectContainer(title2 = unicode(title))
+    oc = ObjectContainer(title1=TITLE, title2=unicode(title + " '%s'" % query))
 
     unquotedQuery = query
     query = String.Quote(query)
@@ -717,11 +741,14 @@ def GetMostWatchedURL(episodes = True):
     return url
     
 ###################################################################################################
-def GetListingsURL(date = ""):
-    url = API_BASE_URL + '/tvdata/listings/TV4?date=%s' % date
+def GetListingsURL(startDate, endDate, episodeReq, page):
+
+    typeReq = "episode" if episodeReq else "clip"
+
+    url = API_BASE_URL + '/play/video_assets?is_live=false&platform=web&sort=broadcast_date_time&sort_order=desc&page=%s&per_page=%s&type=%s&broadcast_from=%s&broadcast_to=%s' % (page, ITEMS_PER_PAGE, typeReq, startDate.replace("-", ""), endDate.replace("-", ""))
         
     if Prefs['onlyfree'] and not Prefs['premium']:
-        url = url + '&premium=false'
+        url = url + '&is_premium=false'
         
     return url
     
