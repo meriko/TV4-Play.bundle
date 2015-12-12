@@ -604,7 +604,7 @@ def Search(query, title):
         oc.add(object)
 
     if len(oc) < 1:
-        oc.header  = unicode("Sökresultat"),
+        oc.header  = unicode("Sökresultat")
         oc.message = unicode("Kunde ej hitta något för '%s'" % unquotedQuery)
         
     return oc
@@ -714,7 +714,7 @@ def GetShowVideosURL(episodes, id = '', query = '', page = 1):
     url = API_BASE_URL + '/play/video_assets?is_live=false&page=%s&platform=web&node_nids=%s&per_page=%s' % (page, id, ITEMS_PER_PAGE)
     
     if query:
-        url = url + '&q=%s' % String.Quote(query)
+        url = url + '&q=%s' % query
 
     if episodes:
         url = url + '&type=episode'
