@@ -679,12 +679,12 @@ def Programs(oc, programs):
                         title = program["name"],
                         showId = unicode(program["nid"]),
                         art = program["logo"] if 'logo' in program else None,
-                        thumb = program["program_image"],
+                        thumb = program["program_image"] if 'program_image' in program else None,
                         summary = program["description"]
                     ),
                 title = unicode(program["name"]),
                 summary = unicode(program["description"]),
-                thumb = program["program_image"],
+                thumb = program["program_image"] if 'program_image' in program else None,
                 art = program["logo"] if 'logo' in program else None
             )
         )
