@@ -278,21 +278,6 @@ def TV4Shows(title, categoryId = '', query = '', page = 1):
         oc.message = SERVER_MESSAGE
         
         return oc
-
-    elif len(oc) >= ITEMS_PER_PAGE:
-        oc.add(
-            NextPageObject(
-                key =
-                    Callback(
-                        TV4Shows,
-                        title = title,
-                        categoryId = categoryId,
-                        query = query,
-                        page = page + 1
-                    ),
-                title = "Fler ..."
-            )
-        )
         
     return oc
     
@@ -633,7 +618,7 @@ def GetProgramsURL(page, category = '', query = ''):
     if category is None:
         category = ''
 
-    url = API_BASE_URL + '/play/programs?per_page=%s&page=%s&category=%s' % (ITEMS_PER_PAGE, page, String.Quote(category))
+    url = API_BASE_URL + '/play/programs?per_page=%s&page=%s&category=%s' % (999, page, String.Quote(category))
     
     if query:
         url = url + '&q=%s' % query
