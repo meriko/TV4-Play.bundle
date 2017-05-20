@@ -46,39 +46,9 @@ def Start():
     HTTP.CacheTime             = 300
     HTTP.Headers['User-agent'] = HTTP_USER_AGENT
 
-    # Try to login
-    Login()
-
 ###################################################################################################
 def ValidatePrefs():
-    oc         = ObjectContainer(title2 = unicode("Inställningar"))
-    oc.header  = ""
-    oc.message = ""
-    
-    if Prefs['premium'] and Prefs['email'] and Prefs['password']:
-        if Login():
-            oc.header = "Inloggad"
-            oc.message = unicode("Du är nu inloggad")
-        else:
-            oc.header = "Inloggningen misslyckades"
-            oc.message = unicode("Felaktigt användarnamn eller lösenord?")
-            return oc
-            
-    elif Prefs['premium']:
-        oc.header = "Information saknas"
-        oc.message = unicode("Användarnamn och/eller lösenord saknas.")
-        return oc
-
-    elif not Prefs['onlyfree']:
-        oc.header = unicode("Alla program")
-        oc.message = PREMIUM_PREVIEW_NOTE
-    else:
-        oc.header = "Gratis"
-        oc.message = unicode("Visar endast program som är gratis.")
-         
-    oc.message = oc.message + ' ' + DISCLAIMER_NOTE + unicode(" Starta om för att inställningarna skall börja gälla.")
-    
-    return oc
+    pass
 
 ####################################################################################################
 @handler(PREFIX, TITLE)
@@ -132,15 +102,7 @@ def MainMenu():
             title  = title,
             prompt = title
         )
-    )
-
-    oc.add(
-        PrefsObject(
-            title = unicode('Inställningar'),
-            summary = unicode('Logga in för att använda Premium\r\n\r\nDu kan även välja att visa alla program för att se vad Premium innebär.\r\n\r\n' + DISCLAIMER_NOTE)
-        )
-    )
-    
+    )    
 
     return oc
 
@@ -291,14 +253,13 @@ def TV4Categories(title):
             )
         )
 
-    if Prefs['premium'] or not Prefs['onlyfree']:
-        title = 'Filmer'
-        oc.add(
-            DirectoryObject(
-                key = Callback(TV4Movies, title = title),
-                title = title
-            )
+    title = 'Filmer'
+    oc.add(
+        DirectoryObject(
+            key = Callback(TV4Movies, title = title),
+            title = title
         )
+    )
 
     oc.objects.sort(key=lambda obj: obj.title)
     
@@ -503,34 +464,22 @@ def TV4Movies(title, offset = 0):
                 for country in movie['production_countries']:
                     countries.append(country)
 
-            if not Prefs['premium']:
-                oc.add(
-                    DirectoryObject(
-                        key = Callback(TV4PremiumRequired),
-                        title = movie['title'],
-                        summary = summary,
-                        duration = duration,
-                        thumb = thumb,
-                        art = art
-                    )
+            oc.add(
+                MovieObject(
+                    url = TEMPLATE_VIDEO_URL % ('film', movie['id'], movie['id']),
+                    title = movie['title'],
+                    genres = genres,
+                    summary = summary,
+                    duration = duration,
+                    original_title = movie['original_title'],
+                    year = year,
+                    directors = directors,
+                    thumb = thumb,
+                    art = art,
+                    source_title = source_title,
+                    countries = countries
                 )
-            else:
-                oc.add(
-                    MovieObject(
-                        url = TEMPLATE_VIDEO_URL % ('film', movie['id'], movie['id']),
-                        title = movie['title'],
-                        genres = genres,
-                        summary = summary,
-                        duration = duration,
-                        original_title = movie['original_title'],
-                        year = year,
-                        directors = directors,
-                        thumb = thumb,
-                        art = art,
-                        source_title = source_title,
-                        countries = countries
-                    )
-                )
+            )
 
             if len(oc) >= ITEMS_PER_PAGE:
                 break
@@ -618,7 +567,7 @@ def Videos(oc, videos):
         
         video_is_premium_only = video['availability']['availability_group_free'] == '0' or not video['availability']['availability_group_free']
         
-        if Prefs['onlyfree'] and not Prefs['premium'] and video_is_premium_only:
+        if video_is_premium_only:
             continue
                 
         url = TEMPLATE_VIDEO_URL % ('program', String.Quote(video['program_nid']), str(video['id']))
@@ -641,30 +590,18 @@ def Videos(oc, videos):
             else:
                 title = '%s ' % (RE_TIME.search(video['broadcast_date_time']).groups()[0]) + title
         
-        if not Prefs['onlyfree'] and not Prefs['premium'] and video_is_premium_only: 
-            oc.add(
-                DirectoryObject(
-                    key = Callback(TV4PremiumRequired),
-                    title = title + " (Premium)",
-                    summary = summary,
-                    thumb = thumb,
-                    art = art,
-                    duration = duration
-                )
+        oc.add(
+            EpisodeObject(
+                url = url,
+                title = title,
+                summary = summary,
+                thumb = thumb,
+                art = art,
+                duration = duration,
+                originally_available_at = originally_available_at,
+                show = show
             )
-        else:
-            oc.add(
-                EpisodeObject(
-                    url = url,
-                    title = title,
-                    summary = summary,
-                    thumb = thumb,
-                    art = art,
-                    duration = duration,
-                    originally_available_at = originally_available_at,
-                    show = show
-                )
-            )
+        )
 
     return oc
 
@@ -701,8 +638,7 @@ def GetProgramsURL(page, category = '', query = ''):
     if query:
         url = url + '&q=%s' % query
     
-    if Prefs['onlyfree'] and not Prefs['premium']:
-        url = url + '&is_premium=false'
+    url = url + '&is_premium=false'
 
     return url
     
@@ -721,8 +657,7 @@ def GetShowVideosURL(episodes, id = '', query = '', page = 1):
     else:
         url = url + '&type=clip'
         
-    if Prefs['onlyfree'] and not Prefs['premium']:
-        url = url + '&is_premium=false'
+    url = url + '&is_premium=false'
         
     return url
 
@@ -735,8 +670,7 @@ def GetMostWatchedURL(episodes = True):
     else:
         url = url + '&type=clip'
     
-    if Prefs['onlyfree'] and not Prefs['premium']:
-        url = url + '&is_premium=false'
+    url = url + '&is_premium=false'
         
     return url
     
@@ -746,18 +680,14 @@ def GetListingsURL(startDate, endDate, episodeReq, page):
     typeReq = "episode" if episodeReq else "clip"
 
     url = API_BASE_URL + '/play/video_assets?is_live=false&platform=web&sort=broadcast_date_time&sort_order=desc&page=%s&per_page=%s&type=%s&broadcast_from=%s&broadcast_to=%s' % (page, ITEMS_PER_PAGE, typeReq, startDate.replace("-", ""), endDate.replace("-", ""))
-        
-    if Prefs['onlyfree'] and not Prefs['premium']:
-        url = url + '&is_premium=false'
+    url = url + '&is_premium=false'
         
     return url
     
 ###################################################################################################
 def GetVideosURL(vman_ids):
     url = API_BASE_URL + '/play/video_assets?id=%s' % vman_ids
-        
-    if Prefs['onlyfree'] and not Prefs['premium']:
-        url = url + '&is_premium=false'
+    url = url + '&is_premium=false'
         
     return url
 
